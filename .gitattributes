@@ -1,0 +1,9 @@
+# 저장소에는 LF로 보관하고, 체크아웃할 때 플랫폼에 맞춘다
+* text=auto
+
+*.cs      text diff=csharp
+*.csproj  text
+*.sln     text eol=crlf
+*.ps1     text eol=crlf
+*.md      text
+*.json    text
