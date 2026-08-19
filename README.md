@@ -25,18 +25,32 @@ PATH 문자열이 바뀌지 않으므로 **이미 열려 있는 터미널에서�
 ### 윈도우
 
 ```powershell
+# 1. 스크립트 실행을 한 번 허용합니다 (관리자 권한 불필요, CurrentUser 범위)
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+# 2. 빌드하고 설치합니다
 git clone https://github.com/tbongkim03/vman.git
 cd vman
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install
+.\build.ps1 -Install
 ```
+
+그리고 **새 터미널을 여세요.**
 
 `dist\` 에 `vman.exe`(CLI)와 `vman-tray.exe`(트레이)가 생기고, `-Install` 을 주면
 `%LOCALAPPDATA%\vman\bin` 에 복사한 뒤 `vman setup` 까지 실행합니다.
 
-> `이 시스템에서 스크립트를 실행할 수 없으므로...` 오류는 PowerShell 실행 정책 때문입니다.
-> 위 명령의 `-ExecutionPolicy Bypass` 가 시스템 설정을 바꾸지 않고 이번 실행만 허용합니다.
+> **1번을 건너뛰지 마세요.** 윈도우 기본 실행 정책은 `Restricted` 인데, 그 상태에서는
+> PowerShell 프로필(`$PROFILE`)이 **아예 실행되지 않습니다.** vman 은 프로필을 통해
+> 셸에 함수를 심으므로, 정책을 풀지 않으면 설치는 성공한 것처럼 보여도
+> `vman activate` · `vman reload` · `vman use` 가 지금 창에 반영되지 않습니다.
+> 새 터미널을 열어도 마찬가지입니다.
+>
+> 정책을 바꾸고 싶지 않다면 빌드만 `powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install`
+> 로 할 수 있지만, 셸 연동 기능은 포기해야 합니다. PATH 등록과 버전 전환 자체는 동작합니다.
 >
 > `dotnet` 을 못 찾으면 SDK 설치 직후 열려 있던 터미널이라 PATH가 낡은 것입니다. 새 터미널을 여세요.
+
+설치가 끝나면 `vman doctor` 로 확인하세요. 위 항목들을 포함해 무엇이 빠졌는지 짚어 줍니다.
 
 ### 리눅스 / WSL2
 
@@ -463,6 +477,28 @@ PATH에 들어가는 항목은 설치 시 한 번만 추가됩니다.
 
 `JAVA_HOME` 은 `current/java` 로 고정되므로 버전을 바꿔도 값이 변하지 않습니다.
 
+## 윈도우가 요구하는 설정
+
+vman 이 건드리는 시스템 설정을 한자리에 모았습니다. **버전 전환 자체는 관리자 권한이
+전혀 필요 없습니다** — 심볼릭 링크 대신 정션을 쓰기 때문입니다. 아래는 그 밖의 기능들입니다.
+
+| 설정 | 필요한 기능 | 관리자 | 안 하면 |
+|---|---|---|---|
+| `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` | 셸 연동 전부 | 불필요 | 프로필이 실행되지 않아 `activate` · `reload` 가 이 창에 안 먹음 |
+| 설정 → 작업 표시줄 → 기타 시스템 트레이 아이콘 | 트레이 아이콘 상시 표시 | 불필요 | 아이콘이 `^` 숨김 영역에 들어감 |
+| 설정 → 개발자용 → 개발자 모드 | 윈도우 11 상단 컨텍스트 메뉴 | 불필요 | MSIX 패키지 설치 거부 |
+| 인증서를 `LocalMachine\TrustedPeople` 에 등록 | 윈도우 11 상단 컨텍스트 메뉴 | **필요** | 서명을 신뢰하지 못해 설치 거부 |
+| VS Build Tools + C++ 워크로드 | 셸 확장을 직접 빌드할 때만 | **필요** | 컴파일 불가 |
+
+앞의 두 개는 일반 사용자에게 해당하고, 뒤의 셋은 윈도우 11 새 우클릭 메뉴를 쓸 때만
+필요합니다. 고전 우클릭 메뉴(`vman menu install`)는 `HKCU` 만 쓰므로 아무 설정도
+필요 없습니다.
+
+무엇이 빠졌는지는 `vman doctor` 가 짚어 줍니다.
+
+리눅스/WSL2 는 이런 설정이 없습니다. `~/.profile` 등 rc 파일에 두 줄을 넣는 것이 전부이고
+sudo 도 필요 없습니다.
+
 ## 알려진 제약
 
 - 파이썬 **버전** 전환은 전역입니다. 폴더별 자동 전환은 심(shim) 방식이 필요합니다.
@@ -473,8 +509,11 @@ PATH에 들어가는 항목은 설치 시 한 번만 추가됩니다.
   (값 자체는 고정이라 버전 전환으로는 바뀌지 않습니다.)
 - 리눅스: glibc 배포판만 지원합니다. Alpine 같은 musl 계열은 받아오는 CPython 배포본이
   맞지 않습니다.
-- `setup` 을 처음 한 창에서는 `eval "$(vman env)"` 한 줄이 필요합니다. 그 다음부터는
-  셸에 심긴 `vman` 함수가 알아서 처리합니다.
+- `setup` 을 실행한 그 창에는 아직 연동이 안 걸려 있습니다. 새 터미널을 열거나
+  (윈도우) `. $PROFILE` · (리눅스) `source ~/.profile` 하세요.
+  그 다음부터는 셸에 심긴 `vman` 함수가 알아서 처리합니다.
+- 윈도우: 셸 연동은 PowerShell 프로필을 통해 걸리므로 **실행 정책이 `Restricted` 면
+  전혀 동작하지 않습니다.** 위 [윈도우가 요구하는 설정](#윈도우가-요구하는-설정) 참고.
 - cmd.exe 는 셸 함수가 없어 자동 적용이 안 됩니다. `vman env --shell cmd` 를 쓰세요.
 - x64 / arm64 만 지원합니다.
 
