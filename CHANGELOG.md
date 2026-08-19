@@ -3,7 +3,9 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 를 따르고,
 버전은 [유의적 버전](https://semver.org/lang/ko/) 을 따릅니다.
 
-## [미출시]
+## [0.3.0] - 2026-08-19
+
+가상환경이 켜졌는지 눈에 보이게 하고, 셸 연동이 안 될 때 그 사실을 말하도록 고쳤습니다.
 
 ### 추가
 
@@ -202,5 +204,6 @@
 - 서명되지 않은 exe 이므로 SmartScreen 경고가 뜰 수 있습니다.
 - x64 / arm64 윈도우만 지원합니다.
 
+[0.3.0]: https://github.com/tbongkim03/vman/releases/tag/v0.3.0
 [0.2.0]: https://github.com/tbongkim03/vman/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tbongkim03/vman/releases/tag/v0.1.0
