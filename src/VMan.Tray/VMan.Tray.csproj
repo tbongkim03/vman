@@ -10,10 +10,8 @@
     <RootNamespace>VMan.Tray</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- 트레이는 윈도우 전용이다. 게시 옵션은 build.ps1 이 넘긴다. -->
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
@@ -8,7 +9,9 @@ namespace VMan.Core;
 /// <summary>
 /// 디렉터리 정션(mount point reparse point) 생성/조회/삭제.
 /// 심볼릭 링크와 달리 일반 사용자 권한으로 만들 수 있다는 것이 핵심.
+/// 윈도우 전용이다. 리눅스/WSL 에서는 <see cref="Links"/> 가 심볼릭 링크로 대체한다.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class Junction
 {
     private const uint FSCTL_SET_REPARSE_POINT = 0x000900A4;

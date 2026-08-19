@@ -45,6 +45,11 @@ if ($Install) {
 
     & (Join-Path $binDir "vman.exe") setup
 
-    Write-Host "`n트레이 앱을 실행하려면:" -ForegroundColor Yellow
+    Write-Host "`n>>> 지금 이 창에서는 아직 안 잡힙니다. 터미널을 새로 여세요. <<<" -ForegroundColor Yellow
+    Write-Host "이 창은 열릴 때 복사해 둔 환경을 계속 쓰기 때문입니다."
+    Write-Host "이 창에서 python 을 치면 스토어 설치 안내가 뜨는데, 그게 정상입니다."
+    Write-Host "`n새 터미널에서 확인:" -ForegroundColor Cyan
+    Write-Host "  vman doctor"
+    Write-Host "`n트레이 앱을 실행하려면:" -ForegroundColor Cyan
     Write-Host "  $binDir\vman-tray.exe"
 }

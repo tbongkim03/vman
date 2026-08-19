@@ -133,6 +133,10 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(BuildAppearanceMenu());
 
+        var newTerminal = Item("새 터미널 열기");
+        newTerminal.Click += (_, _) => Guard(OpenFreshTerminal);
+        _menu.Items.Add(newTerminal);
+
         var openFolder = Item("설치 폴더 열기");
         openFolder.Click += (_, _) => OpenInExplorer(Layout.VersionsDir);
         _menu.Items.Add(openFolder);
@@ -332,7 +336,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             VersionManager.Use(v.Tool, v.Version);
             UpdateTooltip();
-            Notify($"{v.Tool.DisplayName} → {v.Version}\n새로 여는 터미널부터 적용됩니다.");
+            Notify($"{v.Tool.DisplayName} → {v.Version}\n{AppliedHint()}");
         });
     }
 
@@ -357,7 +361,7 @@ internal sealed class TrayApp : ApplicationContext
             string installed = Path.GetFileName(path);
             VersionManager.Use(tool, installed);
             UpdateTooltip();
-            Notify($"{tool.DisplayName} {installed} 설치 후 전환했습니다.\n새로 여는 터미널부터 적용됩니다.");
+            Notify($"{tool.DisplayName} {installed} 설치 후 전환했습니다.\n{AppliedHint()}");
         }
         catch (Exception ex)
         {
@@ -396,6 +400,90 @@ internal sealed class TrayApp : ApplicationContext
 
     private static void ShowError(Exception ex) =>
         MessageBox.Show(ex.Message, "vman 오류", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+    /// <summary>
+    /// 전환 결과가 열려 있는 창에 언제 보이는지 정확히 알려 준다.
+    ///
+    /// 보통은 "바로"가 맞다. PATH 문자열은 그대로고 정션만 바뀌므로, 이미 떠 있는
+    /// 터미널도 다음에 python 을 칠 때 새 버전을 잡는다. 실측으로 확인한 동작이다.
+    ///
+    /// 예외는 하나뿐이다 — <b>vman setup 보다 먼저 열린 창</b>. 그런 창에는 vman 경로가
+    /// 애초에 없어서 전환해 봐야 보이지 않는다. 그 창은 `vman reload` 가 필요하다.
+    /// </summary>
+    private static string AppliedHint()
+        => SessionIsStale()
+            ? "setup 이후에 연 창에는 바로 적용됩니다.\n그 전에 열린 창은 vman reload 가 필요합니다."
+            : "열려 있는 터미널에도 바로 적용됩니다.";
+
+    /// <summary>
+    /// 트레이 자신이 vman 설정보다 먼저 떠 있었는지.
+    ///
+    /// 레지스트리에는 vman 경로가 있는데 이 프로세스의 환경에는 없다면, 이 트레이는
+    /// setup 이전에 시작된 것이다. 그렇다면 그때 같이 떠 있던 다른 터미널들도
+    /// 낡았을 가능성이 높다. 남의 프로세스 환경은 들여다볼 수 없으므로 이것이
+    /// 트레이가 알 수 있는 유일한 단서다.
+    /// </summary>
+    private static bool SessionIsStale()
+    {
+        var session = EnvStore.SessionPathEntries();
+        return Layout.AllPathEntries().Any(entry =>
+            !session.Any(p => string.Equals(
+                p.TrimEnd('\\'), entry.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// 올바른 환경을 가진 터미널을 새로 연다.
+    ///
+    /// GUI 가 이미 떠 있는 터미널의 환경을 고칠 방법은 없다. 프로세스의 환경 블록은
+    /// 시작할 때 복사되고 밖에서 건드릴 수 없다. 그래서 트레이가 할 수 있는 최선은
+    /// "제대로 된 환경을 가진 창을 새로 띄워 주는 것"이다.
+    ///
+    /// 다행히 버전 <b>전환</b>은 이 문제와 무관하다. PATH 문자열이 안 바뀌고 정션만
+    /// 바뀌므로 이미 열린 창에도 즉시 반영된다. 이 메뉴가 필요한 경우는 사실상
+    /// 최초 setup 직후, 아직 PATH 등록이 반영되지 않은 창밖에 없다.
+    ///
+    /// PATH 는 레지스트리에서 재구성해 넘긴다. 트레이 자신의 환경이 낡았을 수도 있는데
+    /// 그대로 물려주면 낡은 창을 하나 더 만드는 셈이기 때문이다.
+    /// </summary>
+    private static void OpenFreshTerminal()
+    {
+        var pathEntries = EnvStore.EffectivePathEntries();
+
+        // 윈도우 터미널이 있으면 그쪽이 낫고, 없으면 PowerShell 로 떨어진다.
+        var candidates = new[] { "wt.exe", "pwsh.exe", "powershell.exe" }
+            .Select(name => Doctor.ResolveCommand(pathEntries, name))
+            .Where(p => p is not null)
+            .Append(Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe"))
+            .ToList();
+
+        Exception? last = null;
+        foreach (string? exe in candidates)
+        {
+            if (exe is null || !File.Exists(exe)) continue;
+            try
+            {
+                var psi = new ProcessStartInfo(exe)
+                {
+                    UseShellExecute = false,
+                    WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+                };
+
+                psi.Environment["PATH"] = string.Join(';', pathEntries);
+                foreach (var tool in ToolDef.All)
+                {
+                    if (tool.HomeEnvVar is null) continue;
+                    string link = Layout.CurrentLink(tool);
+                    if (Directory.Exists(link)) psi.Environment[tool.HomeEnvVar] = link;
+                }
+
+                Process.Start(psi);
+                return;
+            }
+            catch (Exception ex) { last = ex; }
+        }
+
+        throw last ?? new InvalidOperationException("터미널을 찾지 못했습니다.");
+    }
 
     private static void OpenInExplorer(string path)
     {
