@@ -603,17 +603,17 @@ internal static class Program
           vman setup                        폴더 생성 + PATH 등록 (최초 1회)
           vman setup --force                PATH 순서를 vman 이 맨 앞이 되도록 되돌림
           vman doctor [--fix]               왜 PATH 에서 안 잡히는지 진단
-          vman env [--shell X] [--revert]    이 셸에 적용할 코드를 출력 (eval 용)
+          vman env [--shell X] [--revert]   이 셸에 적용할 코드를 출력 (eval 용)
           vman reload                       이 창의 환경을 새 터미널과 같게 다시 읽기
+          vman unsetup                      PATH / JAVA_HOME 원복
+          vman where                        경로와 PATH 등록 항목 확인
 
         가상환경 (폴더별 pip 격리)
           vman venv [이름]                  이 폴더에 가상환경 생성 (기본 .venv)
           vman activate                     이 폴더의 가상환경을 이 창에 적용
           vman deactivate                   가상환경 해제
-          vman menu install                 탐색기 우클릭 메뉴 등록 (윈도우)
           vman autoactivate [on|off]        폴더 이동 시 자동 활성화 (기본 켜짐)
-          vman unsetup                      PATH / JAVA_HOME 원복
-          vman where                        경로와 PATH 등록 항목 확인
+          vman menu install                 탐색기 우클릭 메뉴 등록 (윈도우)
 
         버전 관리
           vman list [도구]                  설치된 버전 목록 (* 가 현재 버전)

@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install
 ### 리눅스 / WSL2
 
 ```bash
-git clone https://github.com/<사용자명>/vman.git
+git clone https://github.com/tbongkim03/vman.git
 cd vman
 ./build.sh --install
 exec $SHELL -l          # 또는 새 터미널
@@ -91,15 +91,36 @@ vman remove node 22.5.1
 
 ### 명령 전체
 
+**초기 설정 · 진단**
+
 | 명령 | 하는 일 |
 |---|---|
-| `vman setup` | 폴더 생성 + 사용자 PATH 등록. 최초 1회 |
+| `vman setup` | 폴더 생성 + PATH 등록. 최초 1회 |
+| `vman setup --force` | vman 경로가 PATH 맨 앞이 되도록 순서를 되돌림 |
 | `vman unsetup` | PATH / `JAVA_HOME` 에서 vman 항목 제거. 설치본은 남김 |
+| `vman doctor [--fix]` | PATH 에서 무엇이 무엇을 가리는지 진단 |
+| `vman env [--shell X]` | 이 셸에 적용할 코드를 출력 (eval 용) |
+| `vman reload` | 이 창의 환경을 새 터미널과 같게 다시 읽기 |
 | `vman where` | 루트 경로와 PATH 등록 항목 확인 |
+
+**가상환경**
+
+| 명령 | 하는 일 |
+|---|---|
+| `vman venv [이름]` | 이 폴더에 가상환경 생성 (기본 `.venv`) |
+| `vman activate` | 이 폴더(또는 상위)의 가상환경을 이 창에 적용 |
+| `vman deactivate` | 가상환경 해제 |
+| `vman autoactivate [on\|off]` | 폴더 이동 시 자동 활성화 (기본 켜짐) |
+| `vman menu install\|uninstall\|status` | 탐색기 우클릭 메뉴 (윈도우) |
+
+**버전 관리**
+
+| 명령 | 하는 일 |
+|---|---|
 | `vman list [도구]` | 설치된 버전 목록. `*` 가 현재 버전 (별칭 `ls`) |
 | `vman current` | 현재 버전 + 실제로 실행해서 얻은 버전 문자열 |
 | `vman use <도구> <버전>` | 버전 전환. 부분 일치 허용 |
-| `vman unset <도구>` | 지정 해제 (정션 제거) |
+| `vman unset <도구>` | 지정 해제 (링크 제거) |
 | `vman available <도구>` | 설치 가능한 버전 조회 |
 | `vman install <도구> <버전>` | 다운로드 후 설치 |
 | `vman import <도구> <이름> <경로>` | 이미 설치된 런타임을 복사 없이 등록 |
