@@ -16,6 +16,8 @@
 #include <shlobj_core.h>
 #include <wrl/implements.h>
 #include <wrl/module.h>
+#include <cstdarg>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -25,6 +27,45 @@ using namespace Microsoft::WRL;
 class __declspec(uuid("FEE6FAFD-826C-4B04-B553-B3DB7616DB8B")) VManVenvCommand;
 
 namespace {
+
+// ---------- 진단 로그 ----------
+//
+// 셸 확장은 탐색기가 띄우는 대리자 안에서 돌아 디버거를 붙이기 어려우므로,
+// 어디까지 실행됐는지 남길 방법이 하나는 있어야 한다.
+//
+// 스위치를 환경변수로 두지 않는 이유: 대리자는 DCOM 이 띄우므로 사용자 셸의
+// 환경변수를 물려받지 못한다. 대신 마커 파일이 있을 때만 기록한다.
+//     type nul > C:\Users\Public\vman-shellext.on
+// 컨테이너 안에서도 접근 가능한 C:\Users\Public 을 쓴다.
+void Log(const wchar_t* fmt, ...)
+{
+    if (GetFileAttributesW(L"C:\\Users\\Public\\vman-shellext.on") == INVALID_FILE_ATTRIBUTES)
+        return;
+
+    wchar_t line[2048];
+    va_list args;
+    va_start(args, fmt);
+    int n = _vsnwprintf_s(line, _TRUNCATE, fmt, args);
+    va_end(args);
+    if (n <= 0) return;
+
+    HANDLE h = CreateFileW(L"C:\\Users\\Public\\vman-shellext.log",
+                           FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;
+
+    std::wstring text(line);
+    text += L"\r\n";
+    int bytes = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (bytes > 1)
+    {
+        std::vector<char> utf8(bytes);
+        WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, utf8.data(), bytes, nullptr, nullptr);
+        DWORD written = 0;
+        WriteFile(h, utf8.data(), static_cast<DWORD>(bytes - 1), &written, nullptr);
+    }
+    CloseHandle(h);
+}
 
 // ---------- 공통 헬퍼 ----------
 
@@ -95,8 +136,15 @@ std::wstring VmanBinPath(const wchar_t* exeName)
     }
     else
     {
+        // KF_FLAG_NO_PACKAGE_REDIRECTION 이 없으면 안 된다.
+        // 이 DLL 은 탐색기가 띄우는 패키지 COM 대리자 안에서 도는데, 그 안에서
+        // FOLDERID_LocalAppData 는 패키지 전용 위치로 리다이렉트된다.
+        //   ...\AppData\Local\Packages\VMan.ShellExt_<해시>\LocalCache\Local
+        // 거기에는 vman-tray.exe 가 없으므로 GetState 가 ECS_HIDDEN 을 돌려주고,
+        // 메뉴가 아예 나타나지 않는다.
         PWSTR local = nullptr;
-        if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local)))
+        if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData,
+                                        KF_FLAG_NO_PACKAGE_REDIRECTION, nullptr, &local)))
             return std::wstring();
         root.assign(local);
         CoTaskMemFree(local);
@@ -105,6 +153,7 @@ std::wstring VmanBinPath(const wchar_t* exeName)
 
     root += L"\\bin\\";
     root += exeName;
+    Log(L"VmanBinPath -> %s", root.c_str());
     return root;
 }
 
@@ -156,14 +205,22 @@ public:
 
     IFACEMETHODIMP Invoke(IShellItemArray* selection, IBindCtx*) override
     {
+        Log(L"sub Invoke: name=%s selection=%p site=%p",
+            m_folderName.c_str(), selection, m_site.Get());
+
         std::wstring folder;
-        if (FAILED(GetTargetFolder(selection, m_site.Get(), folder)) || folder.empty())
+        HRESULT hrFolder = GetTargetFolder(selection, m_site.Get(), folder);
+        Log(L"sub Invoke: GetTargetFolder hr=%08X folder=[%s]", hrFolder, folder.c_str());
+        if (FAILED(hrFolder) || folder.empty())
             return E_FAIL;
 
         // 창 없는 트레이 실행 파일에 맡긴다. 콘솔 앱을 띄우면 검은 창이 번쩍인다.
         std::wstring exe = VmanBinPath(L"vman-tray.exe");
         if (exe.empty() || GetFileAttributesW(exe.c_str()) == INVALID_FILE_ATTRIBUTES)
+        {
+            Log(L"sub Invoke: exe not found");
             return E_FAIL;
+        }
 
         std::wstring args = L"--venv " + Quote(folder) + L" " + Quote(m_folderName);
 
@@ -175,7 +232,10 @@ public:
         info.lpDirectory = folder.c_str();
         info.nShow = SW_SHOWNORMAL;
 
-        return ShellExecuteExW(&info) ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+        BOOL ok = ShellExecuteExW(&info);
+        Log(L"sub Invoke: ShellExecuteEx ok=%d err=%lu hInstApp=%p args=%s",
+            ok, ok ? 0UL : GetLastError(), info.hInstApp, args.c_str());
+        return ok ? S_OK : HRESULT_FROM_WIN32(GetLastError());
     }
 
     IFACEMETHODIMP SetSite(IUnknown* site) override { m_site = site; return S_OK; }
@@ -224,6 +284,7 @@ class VManVenvCommand
 public:
     IFACEMETHODIMP GetTitle(IShellItemArray*, PWSTR* name) override
     {
+        Log(L"root GetTitle");
         return SHStrDupW(L"vman 가상환경 만들기", name);
     }
     IFACEMETHODIMP GetIcon(IShellItemArray*, PWSTR* icon) override
@@ -240,13 +301,21 @@ public:
     {
         // vman 이 설치되어 있지 않으면 메뉴를 아예 숨긴다.
         std::wstring exe = VmanBinPath(L"vman-tray.exe");
-        bool ok = !exe.empty() && GetFileAttributesW(exe.c_str()) != INVALID_FILE_ATTRIBUTES;
+        DWORD attr = exe.empty() ? INVALID_FILE_ATTRIBUTES : GetFileAttributesW(exe.c_str());
+        bool ok = attr != INVALID_FILE_ATTRIBUTES;
+        Log(L"root GetState: exe=%s attr=%08X err=%lu -> %s",
+            exe.c_str(), attr, ok ? 0UL : GetLastError(), ok ? L"ENABLED" : L"HIDDEN");
         *state = ok ? ECS_ENABLED : ECS_HIDDEN;
         return S_OK;
     }
 
     // 하위 메뉴를 가지려면 이 플래그가 있어야 한다.
-    IFACEMETHODIMP GetFlags(EXPCMDFLAGS* flags) override { *flags = ECF_HASSUBCOMMANDS; return S_OK; }
+    IFACEMETHODIMP GetFlags(EXPCMDFLAGS* flags) override
+    {
+        Log(L"root GetFlags");
+        *flags = ECF_HASSUBCOMMANDS;
+        return S_OK;
+    }
 
     IFACEMETHODIMP EnumSubCommands(IEnumExplorerCommand** out) override
     {
@@ -282,7 +351,9 @@ CoCreatableClass(VManVenvCommand)
 
 STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void** ppv)
 {
-    return Module<InProc>::GetModule().GetClassObject(rclsid, riid, ppv);
+    HRESULT hr = Module<InProc>::GetModule().GetClassObject(rclsid, riid, ppv);
+    Log(L"DllGetClassObject hr=%08X", hr);
+    return hr;
 }
 
 STDAPI DllCanUnloadNow()

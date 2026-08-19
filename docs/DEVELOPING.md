@@ -105,8 +105,33 @@ SDK 스키마(`Windows Kits\10\Include\<버전>\winrt\*.xsd`)를 직접 읽어�
 두 스키마 모두 `elementFormDefault="qualified"` 이므로 `Verb` 에도 접두어가 붙습니다.
 `desktop10:ItemType` 을 쓰면 `Drive` 와 `DesktopBackground` 까지 걸 수 있습니다.
 
+### 디버깅
+
+셸 확장은 탐색기가 띄우는 COM 대리자 안에서 돌기 때문에 디버거를 붙이기 어렵습니다.
+마커 파일을 만들면 진단 로그가 남습니다.
+
+```powershell
+New-Item -ItemType File C:\Users\Public\vman-shellext.on -Force
+Stop-Process -Name explorer -Force
+# 폴더를 우클릭한 뒤
+Get-Content C:\Users\Public\vman-shellext.log
+```
+
+스위치를 환경변수가 아니라 파일로 둔 이유는, 대리자를 DCOM 이 띄우므로 사용자 셸의
+환경변수를 물려받지 못하기 때문입니다. 마커 파일을 지우면 로그도 멈춥니다.
+
+`GetState` 가 `ECS_HIDDEN` 을 돌려주면 메뉴가 **오류 없이 조용히 사라집니다.**
+"메뉴가 안 보인다" 의 첫 번째 확인 대상입니다.
+
 ### 주의
 
+- **`FOLDERID_LocalAppData` 에는 `KF_FLAG_NO_PACKAGE_REDIRECTION` 이 필요합니다.**
+  대리자 안에서는 이 폴더가 패키지 전용 위치
+  (`...\AppData\Local\Packages\VMan.ShellExt_<해시>\LocalCache\Local`)로 리다이렉트됩니다.
+  플래그가 없으면 `vman-tray.exe` 를 못 찾아 `GetState` 가 메뉴를 숨깁니다.
+- 셸 확장은 `vman-tray.exe --venv` 를 부릅니다. **트레이 실행 파일이 최신이어야 합니다.**
+  `--venv` 모드가 없는 옛 빌드가 깔려 있으면 메뉴는 정상이지만 클릭해도 아무 일이 없습니다.
+  셸 확장을 고치기 전에 `build.ps1 -Install` 로 트레이부터 갱신하세요.
 - 소스에 한글 문자열이 있으므로 `cl` 에 **`/utf-8` 이 필요합니다.** 없으면 MSVC 가
   BOM 없는 소스를 시스템 코드페이지(949)로 읽어 `C2001`(상수에 줄 바꿈 문자)로 멈춥니다.
 - 매니페스트의 `Publisher` 는 서명 인증서의 `Subject` 와 **글자 하나까지** 같아야 합니다.

@@ -52,8 +52,11 @@
 - `src/VMan.ShellExt` 의 C++ `IExplorerCommand` 구현과 `packaging/` 의 MSIX 패키징.
   `packaging/build-msix.ps1` 로 컴파일 → 패키지 → 서명까지 **관리자 권한 없이** 됩니다.
   사이드로드만 인증서를 `LocalMachine\TrustedPeople` 에 넣어야 해서 관리자 권한이 필요합니다.
-- 아직 **실기에서 메뉴가 뜨는 것까지는 확인하지 못했습니다.** 빌드·서명 산출물과
-  DLL 의 COM 진입점(`DllGetClassObject` · `DllCanUnloadNow`)까지만 검증했습니다.
+- 윈도우 11 (빌드 26100) 실기에서 확인했습니다. 폴더 아이콘 우클릭과 폴더 안 빈 공간
+  우클릭 양쪽에서 메뉴가 상단에 뜨고, 하위 항목을 누르면 가상환경이 만들어집니다.
+- 마커 파일(`C:\Users\Public\vman-shellext.on`)이 있을 때만 도는 진단 로그를 넣었습니다.
+  대리자 안에서는 디버거를 붙이기 어렵고, `GetState` 가 `ECS_HIDDEN` 을 돌려주면
+  메뉴가 오류 없이 조용히 사라지기 때문입니다.
 
 ### 수정
 
@@ -69,6 +72,11 @@
     `*` 나 `.확장자`만 받으므로 `Directory` 를 쓰려면 **desktop5** 여야 합니다.
   - 매니페스트에 `windows.externalLocation` 확장을 넣었는데 그런 카테고리는 스키마에
     없습니다. 외부 경로는 `Add-AppxPackage -ExternalLocation` 으로 넘깁니다.
+- 설치까지 성공한 뒤에도 메뉴가 뜨지 않던 문제. `VmanBinPath` 가
+  `SHGetKnownFolderPath(FOLDERID_LocalAppData)` 를 플래그 없이 불렀는데, 셸 확장이 도는
+  패키지 COM 대리자 안에서는 이 폴더가 패키지 전용 위치로 리다이렉트됩니다. 거기에
+  `vman-tray.exe` 가 없으니 `GetState` 가 `ECS_HIDDEN` 을 돌려주고 메뉴가 오류 없이
+  사라졌습니다. `KF_FLAG_NO_PACKAGE_REDIRECTION` 을 넘겨 해결했습니다.
 - `docs/DEVELOPING.md` 의 빌드 명령에 백스페이스 제어문자(0x08)가 박혀 있어
   `.\packaging\build-msix.ps1` 이 `.\packaginguild-msix.ps1` 로 보이던 문제.
 - 트레이 전환 알림 문구를 사실에 맞게 고쳤습니다. 링크만 바뀌므로 이미 열린 터미널에도
