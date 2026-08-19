@@ -7,26 +7,22 @@ public sealed record InstalledVersion(ToolDef Tool, string Version, string Path,
 public static class VersionManager
 {
     /// <summary>최초 1회. 폴더를 만들고 PATH에 고정 경로를 등록한다.</summary>
-    public static bool Setup()
+    /// <param name="force">
+    /// 이미 등록되어 있어도 vman 경로를 PATH 맨 앞으로 다시 끌어올린다.
+    /// 다른 설치 프로그램(대표적으로 마이크로소프트 스토어 Python)이 자기 경로를
+    /// PATH 앞에 끼워 넣어 vman 이 가려졌을 때 쓴다.
+    /// </param>
+    public static EnvSetupResult Setup(bool force = false)
     {
         Layout.EnsureDirectories();
 
-        // 정션 대상이 아직 없어도 PATH에 미리 넣어둔다.
+        // 링크 대상이 아직 없어도 PATH에 미리 넣어둔다.
         // 존재하지 않는 PATH 항목은 그냥 무시되므로 안전하다.
-        bool changed = EnvManager.PrependToUserPath(Layout.AllPathEntries());
-        if (changed) EnvManager.Broadcast();
-        return changed;
+        return EnvStore.Setup(force);
     }
 
     /// <summary>vman이 건드린 PATH와 JAVA_HOME을 되돌린다. versions 폴더는 남긴다.</summary>
-    public static void Unsetup()
-    {
-        EnvManager.RemoveFromUserPath(Layout.AllPathEntries());
-        foreach (var tool in ToolDef.All)
-            if (tool.HomeEnvVar is not null)
-                EnvManager.DeleteUserVariable(tool.HomeEnvVar);
-        EnvManager.Broadcast();
-    }
+    public static IReadOnlyList<string> Unsetup() => EnvStore.Unsetup();
 
     /// <summary>versions\{tool} 아래 실제로 쓸 수 있는 버전 목록.</summary>
     public static IReadOnlyList<InstalledVersion> List(ToolDef tool)
@@ -47,15 +43,15 @@ public static class VersionManager
             .ToList();
     }
 
-    /// <summary>현재 활성 버전 이름. 정션이 없으면 null.</summary>
+    /// <summary>현재 활성 버전 이름. 링크가 없으면 null.</summary>
     public static string? CurrentVersion(ToolDef tool)
     {
-        string? target = Junction.GetTarget(Layout.CurrentLink(tool));
+        string? target = Links.GetTarget(Layout.CurrentLink(tool));
         if (target is null) return null;
-        return System.IO.Path.GetFileName(target.TrimEnd('\\'));
+        return System.IO.Path.GetFileName(target.TrimEnd('\\', '/'));
     }
 
-    /// <summary>버전 전환. 정션을 다시 걸고 부속 환경변수를 갱신한다.</summary>
+    /// <summary>버전 전환. 링크를 다시 걸고 부속 환경변수를 갱신한다.</summary>
     public static void Use(ToolDef tool, string version)
     {
         string target = Layout.VersionDir(tool, version);
@@ -65,26 +61,23 @@ public static class VersionManager
             throw new FileNotFoundException($"유효한 설치본이 아닙니다. {tool.ProbeExe} 를 찾을 수 없습니다: {target}");
 
         Directory.CreateDirectory(Layout.CurrentDir);
-        Junction.Repoint(Layout.CurrentLink(tool), target);
+        Links.Repoint(Layout.CurrentLink(tool), target);
 
-        if (tool.HomeEnvVar is not null)
-            EnvManager.SetUserVariable(tool.HomeEnvVar, Layout.CurrentLink(tool));
-
-        EnvManager.Broadcast();
+        EnvStore.SetToolHome(tool);
+        EnvStore.Broadcast();
     }
 
-    /// <summary>현재 지정을 해제한다(정션 제거).</summary>
+    /// <summary>현재 지정을 해제한다(링크 제거).</summary>
     public static void Unset(ToolDef tool)
     {
-        Junction.Remove(Layout.CurrentLink(tool));
-        if (tool.HomeEnvVar is not null)
-            EnvManager.DeleteUserVariable(tool.HomeEnvVar);
-        EnvManager.Broadcast();
+        Links.Remove(Layout.CurrentLink(tool));
+        EnvStore.ClearToolHome(tool);
+        EnvStore.Broadcast();
     }
 
     /// <summary>
     /// 이미 설치되어 있는 런타임을 vman이 관리하도록 등록한다.
-    /// 파일을 복사하지 않고 정션으로 연결하므로 즉시 끝나고 디스크도 안 먹는다.
+    /// 파일을 복사하지 않고 링크로 연결하므로 즉시 끝나고 디스크도 안 먹는다.
     /// </summary>
     public static void Import(ToolDef tool, string version, string sourcePath)
     {
@@ -98,7 +91,7 @@ public static class VersionManager
             throw new IOException($"이미 {version} 이(가) 등록되어 있습니다.");
 
         Directory.CreateDirectory(Layout.ToolVersionsDir(tool));
-        Junction.Create(dest, sourcePath);
+        Links.Create(dest, sourcePath);
     }
 
     /// <summary>설치본 삭제. 현재 사용 중이면 먼저 해제한다.</summary>
@@ -111,8 +104,8 @@ public static class VersionManager
         if (string.Equals(CurrentVersion(tool), version, StringComparison.OrdinalIgnoreCase))
             Unset(tool);
 
-        if (Junction.IsLink(dir)) Junction.Remove(dir);   // import 로 등록한 것 → 링크만 끊음
-        else Directory.Delete(dir, recursive: true);      // 실제 설치본 → 통째로 삭제
+        if (Links.IsLink(dir)) Links.Remove(dir);      // import 로 등록한 것 → 링크만 끊음
+        else Directory.Delete(dir, recursive: true);   // 실제 설치본 → 통째로 삭제
     }
 
     /// <summary>현재 활성 버전이 실제로 무엇을 보고하는지 실행해서 확인.</summary>

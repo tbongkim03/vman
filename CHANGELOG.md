@@ -3,6 +3,86 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 를 따르고,
 버전은 [유의적 버전](https://semver.org/lang/ko/) 을 따릅니다.
 
+## [미출시]
+
+### 추가
+
+**리눅스 / WSL2 지원**
+
+- OS 별로 갈리는 지점을 파사드 둘로 묶었습니다. `Links` 가 정션(윈도우)과 심볼릭
+  링크(리눅스)를, `EnvStore` 가 `HKCU\Environment` 와 rc 파일 + `env.sh` 를 감춥니다.
+  `VMan.Core` 의 TFM 을 `net8.0-windows` → `net8.0` 으로 내리고, 윈도우 전용 코드는
+  `Platform.IsWindows` (`SupportedOSPlatformGuard`) 로 감쌉니다.
+- `build.sh` 추가. 트레이는 WinForms 라 윈도우 전용이므로 CLI 만 만듭니다.
+- tar 의 심볼릭 링크와 실행 권한을 살립니다. `bin/python3` → `python3.12` 같은
+  링크를 잃으면 리눅스 런타임이 아예 돌지 않습니다.
+- 아카이브 형식을 URL 확장자가 아니라 앞 2바이트로 판단합니다. Adoptium 의 다운로드
+  URL 에는 확장자가 없고 리다이렉트 뒤에야 zip / tar.gz 가 갈립니다.
+
+**한 창에서 연속으로 쓰기**
+
+- `vman env` / `vman reload` — 프로세스는 부모 셸의 환경을 바꿀 수 없으므로 셸 안에
+  `vman` 함수를 심습니다. PATH 계산은 C# (`ShellCode`) 에서 하고 셸에는 대입문 한 줄만
+  내보내므로 sh · fish · PowerShell · cmd 를 같은 코드로 지원합니다.
+- `vman doctor [--fix]` — PATH 를 앞에서부터 훑어 각 명령이 실제로 어디서 잡히는지
+  계산하고, vman 이 아니면 누가 가리는지 보여줍니다. 윈도우에서는 레지스트리(새 터미널이
+  갖게 될 것)와 현재 프로세스 환경(지금 이 창)을 나눠 봅니다. `setup` 보다 먼저 열린
+  창에서 앱 실행 별칭 스텁이 잡히는 경우를 이 구분 없이는 찾을 수 없습니다.
+- `vman setup --force` 로 vman 경로를 PATH 맨 앞으로 되돌립니다.
+- `install` / `import` 는 그 도구에 지정된 버전이 없으면 바로 활성화합니다.
+
+**폴더별 가상환경**
+
+- `vman venv [이름]` — 현재 vman 이 가리키는 파이썬으로 `python -m venv` 를 부릅니다.
+  기본 이름은 `.venv` 이고, 점으로 시작하면 윈도우에서 숨김 속성을 겁니다.
+  `.pyenv` / `pyenv` / `venv` / `env` 도 계속 인식합니다.
+- `vman activate` / `vman deactivate` — venv 가 딸려 주는 activate 스크립트를 부르지
+  않고 `ShellCode` 로 직접 PATH 를 조작합니다. 이전에 켠 가상환경의 경로를 먼저
+  걷어내므로 프로젝트를 오가도 PATH 가 쌓이지 않습니다.
+- `vman autoactivate [on|off]` — 폴더를 옮기면 자동으로 켜고 끕니다(기본 켜짐).
+  프롬프트마다 도는 코드라 세 단계로 걸러냅니다: 스위치 확인 → 직전 디렉터리와 비교 →
+  셸 안 문자열 조작만으로 상위 탐색. 프로세스를 띄우는 것은 대상이 실제로 바뀔 때뿐입니다.
+  손으로 켠 가상환경은 건드리지 않습니다.
+- `vman menu install|uninstall|status` — 탐색기 우클릭 메뉴 (윈도우, HKCU 만 사용).
+  `Directory\shell` 은 `%1`, `Directory\Background\shell` 은 `%V` 로 인자가 달라 따로
+  등록합니다. 실행은 `vman-tray.exe --venv` 에 맡깁니다(콘솔 창이 번쩍이지 않도록).
+
+**윈도우 11 상단 컨텍스트 메뉴**
+
+- `src/VMan.ShellExt` 의 C++ `IExplorerCommand` 구현과 `packaging/` 의 MSIX 패키징.
+  `packaging/build-msix.ps1` 로 컴파일 → 패키지 → 서명까지 **관리자 권한 없이** 됩니다.
+  사이드로드만 인증서를 `LocalMachine\TrustedPeople` 에 넣어야 해서 관리자 권한이 필요합니다.
+- 윈도우 11 (빌드 26100) 실기에서 확인했습니다. 폴더 아이콘 우클릭과 폴더 안 빈 공간
+  우클릭 양쪽에서 메뉴가 상단에 뜨고, 하위 항목을 누르면 가상환경이 만들어집니다.
+- 마커 파일(`C:\Users\Public\vman-shellext.on`)이 있을 때만 도는 진단 로그를 넣었습니다.
+  대리자 안에서는 디버거를 붙이기 어렵고, `GetState` 가 `ECS_HIDDEN` 을 돌려주면
+  메뉴가 오류 없이 조용히 사라지기 때문입니다.
+
+### 수정
+
+- `vman env` 의 `--shell` 값이 위치 인자로 잡혀 가상환경 이름으로 해석되던 문제.
+  (`env --shell posix --activate` 가 "posix" 라는 이름을 찾다 실패)
+- `vman help` 에서 `unsetup` 과 `where` 가 "가상환경" 섹션에 잘못 들어가 있던 문제.
+- 셸 확장이 컴파일되지 않던 문제 네 가지. 첫 빌드에서 드러났습니다.
+  - `cl` 에 `/utf-8` 이 없어 MSVC 가 BOM 없는 소스를 코드페이지 949 로 읽었습니다.
+    한글 문자열 리터럴이 깨져 `C2001` 로 멈췄습니다.
+  - `build-msix.ps1` 이 BOM 없는 UTF-8 이라 PowerShell 5.1 이 한글 출력을 깨뜨렸습니다.
+  - 매니페스트가 `desktop5:Extension` 을 썼습니다. `FileExplorerContextMenus` 는
+    **desktop4** 에만 정의되어 있습니다. 반대로 `ItemType` 은 desktop4 의 `Type` 이
+    `*` 나 `.확장자`만 받으므로 `Directory` 를 쓰려면 **desktop5** 여야 합니다.
+  - 매니페스트에 `windows.externalLocation` 확장을 넣었는데 그런 카테고리는 스키마에
+    없습니다. 외부 경로는 `Add-AppxPackage -ExternalLocation` 으로 넘깁니다.
+- 설치까지 성공한 뒤에도 메뉴가 뜨지 않던 문제. `VmanBinPath` 가
+  `SHGetKnownFolderPath(FOLDERID_LocalAppData)` 를 플래그 없이 불렀는데, 셸 확장이 도는
+  패키지 COM 대리자 안에서는 이 폴더가 패키지 전용 위치로 리다이렉트됩니다. 거기에
+  `vman-tray.exe` 가 없으니 `GetState` 가 `ECS_HIDDEN` 을 돌려주고 메뉴가 오류 없이
+  사라졌습니다. `KF_FLAG_NO_PACKAGE_REDIRECTION` 을 넘겨 해결했습니다.
+- `docs/DEVELOPING.md` 의 빌드 명령에 백스페이스 제어문자(0x08)가 박혀 있어
+  `.\packaging\build-msix.ps1` 이 `.\packaginguild-msix.ps1` 로 보이던 문제.
+- 트레이 전환 알림 문구를 사실에 맞게 고쳤습니다. 링크만 바뀌므로 이미 열린 터미널에도
+  즉시 반영됩니다. `setup` 보다 먼저 열린 창일 때만 문구가 달라집니다.
+- `unsetup` 이 vman 블록만 있던 rc / 프로필은 파일째 치웁니다.
+
 ## [0.1.0] - 2026-08-19
 
 첫 공개 버전.

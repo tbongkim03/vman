@@ -1,11 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- net8.0 (플랫폼 중립). 윈도우 전용 코드는 [SupportedOSPlatform] 로 표시하고
+         Platform.IsWindows 로 감싼다. 리눅스/WSL 에서도 이 어셈블리 그대로 쓴다. -->
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 플랫폼 중립 TFM 에서는 레지스트리 API 가 기본 제공되지 않는다.
+         리눅스에서는 로드만 되고 호출되지 않는다. -->
+    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+  </ItemGroup>
 
 </Project>
