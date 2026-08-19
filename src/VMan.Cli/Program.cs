@@ -90,11 +90,15 @@ internal static class Program
             return;
         }
 
-        Console.WriteLine("이 창에 지금 바로 적용하려면:");
-        Console.WriteLine($"  {ShellCode.HowToApply(shell)}");
+        // 방금 setup 을 했으니 연동은 설치되어 있다. 그러면 프로필을 다시 읽는 한 줄이
+        // 가장 간단하고, eval 주문은 그 다음이다.
+        Console.WriteLine("다음에 여는 터미널부터 자동으로 적용됩니다.");
         Console.WriteLine();
-        Console.WriteLine("다음에 여는 터미널부터는 자동으로 적용됩니다.");
-        Console.WriteLine("그 뒤로는 `vman reload` 한 마디로 이 창을 다시 읽을 수 있습니다.");
+        Console.WriteLine("이 창에 지금 적용하려면:");
+        Console.WriteLine($"  {EnvStore.SourceProfileCommand()}");
+        Console.WriteLine();
+        Console.WriteLine($"그래도 안 되면:  {ShellCode.HowToApply(shell)}");
+        Console.WriteLine("적용된 뒤로는 `vman reload` 한 마디면 됩니다.");
     }
 
     /// <summary>셸에 심어 둔 vman 래퍼 함수를 통해 불렸는지. 함수가 VMAN_SHELL 을 세팅한다.</summary>
@@ -190,24 +194,41 @@ internal static class Program
     }
 
     /// <summary>
-    /// 셸 연동이 없어서 이 창에 적용되지 못했을 때의 안내.
+    /// 이 창에 적용되지 못했을 때의 안내.
     ///
-    /// eval 주문만 던지면 사용자는 매번 그것을 쳐야 하는 줄 안다. 그것은 우회책이고,
-    /// 진짜 해결은 `vman setup` 이다. 원인을 먼저 말하고 영구 해결책을 앞세운다.
+    /// eval 주문만 던지면 사용자는 그것이 사용법인 줄 안다. 그것은 우회책이다.
+    /// 게다가 상황이 둘로 갈리고 해결책이 서로 다르다.
+    ///   연동이 아예 없음        → vman setup
+    ///   창이 연동보다 먼저 열림 → 새 터미널, 또는 지금 창이면 . $PROFILE
+    /// 원인을 먼저 말하고 그 상황에 맞는 해결책을 앞세운다.
     /// </summary>
-    private static void PrintWrapperMissing()
+    /// <param name="evalCommand">최후의 수단으로 보여줄 eval 한 줄.</param>
+    private static void PrintNotAppliedHere(string evalCommand)
     {
         Console.WriteLine();
-        Console.WriteLine("다만 이 창에는 적용되지 않았습니다 — 셸 연동이 되어 있지 않습니다.");
-        Console.WriteLine("프로세스는 자기를 부른 셸의 환경을 바꿀 수 없어서, vman 이 셸 안에");
-        Console.WriteLine("함수로 심겨 있어야 합니다.");
+        if (!EnvStore.ShellIntegrationInstalled())
+        {
+            Console.WriteLine("이 창에는 적용되지 않았습니다 — 셸 연동이 설치되어 있지 않습니다.");
+            Console.WriteLine("프로세스는 자기를 부른 셸의 환경을 바꿀 수 없어서, vman 이 셸 안에");
+            Console.WriteLine("함수로 심겨 있어야 합니다.");
+            Console.WriteLine();
+            Console.WriteLine("한 번만 해두면 됩니다:");
+            Console.WriteLine("  vman setup        그리고 새 터미널을 여세요");
+        }
+        else
+        {
+            Console.WriteLine("이 창에는 적용되지 않았습니다 — 이 창이 셸 연동보다 먼저 열렸습니다.");
+            Console.WriteLine();
+            Console.WriteLine("새 터미널을 열면 됩니다. 이 창을 그대로 쓰려면:");
+            Console.WriteLine($"  {EnvStore.SourceProfileCommand()}");
+        }
+
         Console.WriteLine();
-        Console.WriteLine("한 번만 해두면 됩니다:");
-        Console.WriteLine("  vman setup        그리고 새 터미널을 여세요");
-        Console.WriteLine();
-        Console.WriteLine("지금 이 창에만 적용하려면:");
-        Console.WriteLine($"  {ActivateHint()}");
+        Console.WriteLine("이 창에 이번만 적용하려면:");
+        Console.WriteLine($"  {evalCommand}");
     }
+
+    private static void PrintWrapperMissing() => PrintNotAppliedHere(ActivateHint());
 
     private static int CmdDeactivate()
     {
@@ -388,13 +409,11 @@ internal static class Program
             return 0;
         }
 
+        // reload 는 셸 연동이 있어야 동작한다. 여기까지 왔다는 것은 그것이 없다는 뜻이고,
+        // 그러면 reload 자신이 이 창을 고칠 수 없다. 무엇이 빠졌는지 말해 준다.
         var shell = ShellCode.Detect();
-        Console.WriteLine("이 창을 새로 읽으려면:");
-        Console.WriteLine($"  {ShellCode.HowToApply(shell).Replace("vman env", "vman env --reload")}");
-        Console.WriteLine();
-        Console.WriteLine(Platform.IsWindows
-            ? "PowerShell 이라면 `. $PROFILE` 도 같은 일을 합니다."
-            : "`source ~/.bashrc` 도 같은 일을 합니다.");
+        PrintNotAppliedHere(
+            ShellCode.HowToApply(shell).Replace("vman env", "vman env --reload"));
         return 0;
     }
 

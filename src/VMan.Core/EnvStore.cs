@@ -82,6 +82,15 @@ public static class EnvStore
     public static IReadOnlyList<string> IntegratedShellFiles()
         => Platform.IsWindows ? PowerShellEnv.InstalledProfiles() : ShellEnv.InstalledRcFiles();
 
+    /// <summary>env 파일이 있고 셸 설정이 그것을 읽도록 되어 있는지.</summary>
+    public static bool ShellIntegrationInstalled()
+        => File.Exists(Platform.IsWindows ? PowerShellEnv.EnvFile : Layout.ShellEnvFile)
+           && IntegratedShellFiles().Count > 0;
+
+    /// <summary>지금 이 창을 셸 연동 상태로 만드는 한 줄 (새 터미널을 열지 않을 때).</summary>
+    public static string SourceProfileCommand()
+        => Platform.IsWindows ? ". $PROFILE" : "source ~/.profile";
+
     /// <summary>환경변수 변경을 시스템에 알린다(윈도우 전용, 리눅스는 무의미).</summary>
     public static void Broadcast()
     {
