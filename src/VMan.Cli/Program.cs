@@ -471,6 +471,23 @@ internal static class Program
             string? v = VersionManager.CurrentVersion(tool);
             Console.WriteLine($"{tool.DisplayName,-8} {v ?? "(설정 안 됨)",-24} {VersionManager.Probe(tool)}");
         }
+
+        // 프롬프트를 못 보는 자리(스크립트, cmd, 편집기 터미널)에서도
+        // 가상환경이 켜졌는지 확인할 수 있어야 한다.
+        Console.WriteLine();
+        string? active = Environment.GetEnvironmentVariable("VIRTUAL_ENV");
+        if (string.IsNullOrWhiteSpace(active))
+        {
+            Console.WriteLine("가상환경  (꺼짐)");
+            var here = VenvManager.Find(Environment.CurrentDirectory);
+            if (here is not null)
+                Console.WriteLine($"          이 폴더에 {here.Name} 이(가) 있습니다. `vman activate` 로 켜세요.");
+        }
+        else
+        {
+            Console.WriteLine($"가상환경  {active}");
+            Console.WriteLine($"          {VenvManager.Probe(new Venv(active, Path.GetFileName(active.TrimEnd('\\', '/'))))}");
+        }
         return 0;
     }
 

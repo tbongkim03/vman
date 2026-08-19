@@ -199,17 +199,40 @@ public static class ShellEnv
             return 0
         }
 
+        # 프롬프트 앞에 (이름) 을 붙여 가상환경이 켜졌는지 눈으로 알 수 있게 한다.
+        # 표준 activate 스크립트가 하는 일과 같다. VMAN_VENV_PROMPT=0 이면 끈다.
+        #
+        # 원본 PS1 을 한 번만 보관해 두고 매번 그것에서 다시 만든다. 앞에 덧붙이기만
+        # 하면 가상환경을 옮겨 다닐 때 (a) (b) (c) 처럼 접두어가 쌓인다.
+        _vman_venv_ps1() {
+            [ "${VMAN_VENV_PROMPT:-1}" = "1" ] || return 0
+            [ -n "${_VMAN_PS1_BASE+x}" ] || _VMAN_PS1_BASE="$PS1"
+
+            if [ -n "${VIRTUAL_ENV:-}" ]; then
+                PS1="(${VIRTUAL_ENV_PROMPT:-${VIRTUAL_ENV##*/}}) $_VMAN_PS1_BASE"
+            else
+                PS1="$_VMAN_PS1_BASE"
+            fi
+            return 0
+        }
+
+        _vman_prompt() {
+            _vman_auto_venv
+            _vman_venv_ps1
+            return 0
+        }
+
         # 프롬프트를 그리기 직전에 부른다. 셸마다 거는 자리가 다르다.
         if [ -n "${ZSH_VERSION:-}" ]; then
             typeset -ga precmd_functions
             case " ${precmd_functions[*]} " in
-                *" _vman_auto_venv "*) ;;
-                *) precmd_functions+=(_vman_auto_venv) ;;
+                *" _vman_prompt "*) ;;
+                *) precmd_functions+=(_vman_prompt) ;;
             esac
         elif [ -n "${BASH_VERSION:-}" ]; then
             case "${PROMPT_COMMAND:-}" in
-                *_vman_auto_venv*) ;;
-                *) PROMPT_COMMAND="_vman_auto_venv${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
+                *_vman_prompt*) ;;
+                *) PROMPT_COMMAND="_vman_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
             esac
         fi
 

@@ -255,6 +255,17 @@ vman deactivate           # 해제
 `activate` 는 상위 폴더까지 거슬러 올라가며 찾으므로 프로젝트 하위 어디에서 실행해도 됩니다.
 `.venv` · `venv` · `env` 를 인식하고, 예전 버전이 만들던 `.pyenv` · `pyenv` 도 계속 인식합니다.
 
+켜져 있으면 프롬프트 앞에 이름이 붙습니다.
+
+```
+(.venv) PS C:\projects\myapp>
+(.venv) user@host:~/projects/myapp$
+```
+
+프롬프트를 못 보는 자리에서는 `vman current` 맨 아래에 활성 가상환경이 나옵니다.
+접두어가 거슬리면 `VMAN_VENV_PROMPT=0` 으로 표시만 끌 수 있습니다.
+셸 테마가 이미 표시해 준다면(`VIRTUAL_ENV_PROMPT` 를 읽습니다) 그때 쓰면 됩니다.
+
 > **pyenv 를 쓰지 않는 이유.** `pyenv`(와 `pyenv-win`)는 파이썬 **버전** 관리자입니다.
 > vman 이 하는 일과 같아서 둘을 같이 깔면 PATH 앞자리를 두고 다툽니다.
 > 폴더별로 패키지를 가르는 것은 파이썬에 내장된 `venv` 모듈이 하는 일이라,

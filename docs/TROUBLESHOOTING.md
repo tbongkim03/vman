@@ -270,6 +270,40 @@ rm ~/.local/share/vman/downloads/catalog-*.json
 rm ~/.local/share/vman/downloads/python-index.json
 ```
 
+## 가상환경이 켜졌는지 어떻게 아나요
+
+켜져 있으면 프롬프트 앞에 이름이 붙습니다.
+
+```
+(.venv) PS C:\projA>
+(.venv) user@host:~/projA$
+```
+
+프롬프트를 못 보는 자리(스크립트, cmd, 편집기 터미널)에서는:
+
+```
+vman current
+```
+
+맨 아래에 활성 가상환경 경로와 파이썬 버전이 나옵니다. 꺼져 있는데 이 폴더에
+가상환경이 있으면 그것도 알려줍니다.
+
+프롬프트 접두어가 거슬리면 끌 수 있습니다. 켜고 끄는 것은 표시뿐이고
+가상환경 자체는 그대로입니다.
+
+```powershell
+$env:VMAN_VENV_PROMPT = '0'     # 윈도우
+```
+```bash
+export VMAN_VENV_PROMPT=0        # 리눅스 / WSL2
+```
+
+oh-my-posh · starship 같은 셸 테마를 쓴다면 대개 그쪽이 `VIRTUAL_ENV_PROMPT` 를 읽어
+자기 방식으로 표시합니다. 두 번 나오면 위 변수로 vman 쪽을 끄세요.
+
+> 접두어가 안 보인다면 셸 연동이 안 된 것입니다. `vman setup` 을 하고 새 셸을 여세요.
+> 표준 `activate` 스크립트를 직접 부른 경우에도 그쪽 방식대로 표시됩니다.
+
 ## 가상환경을 만들었는데 pip 이 여전히 전역에 설치됩니다
 
 활성화가 안 된 것입니다. 만들기와 활성화는 별개입니다.

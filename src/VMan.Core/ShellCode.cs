@@ -144,6 +144,9 @@ public static class ShellCode
         var sb = new StringBuilder();
         AppendAssign(sb, kind, "PATH", path);
         AppendAssign(sb, kind, "VIRTUAL_ENV", venv.Path);
+        // 파이썬 3.11 부터 표준 venv 도 이 변수를 심는다. 프롬프트에 무엇을 보여줄지
+        // 정하는 값이고, 편집기와 셸 테마(oh-my-posh, starship 등)가 이것을 읽는다.
+        AppendAssign(sb, kind, "VIRTUAL_ENV_PROMPT", venv.Name);
         // 가상환경 안에서는 PYTHONHOME 이 있으면 오히려 방해가 된다.
         AppendUnset(sb, kind, "PYTHONHOME");
         return sb.ToString();
@@ -158,6 +161,7 @@ public static class ShellCode
         var sb = new StringBuilder();
         AppendAssign(sb, kind, "PATH", string.Join(Platform.PathSeparator, kept));
         AppendUnset(sb, kind, "VIRTUAL_ENV");
+        AppendUnset(sb, kind, "VIRTUAL_ENV_PROMPT");
         return sb.ToString();
     }
 

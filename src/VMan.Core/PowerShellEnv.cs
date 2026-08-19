@@ -190,8 +190,19 @@ public static class PowerShellEnv
             $global:__vman_inner_prompt = $function:prompt
             function global:prompt {
                 __vman_auto_venv
-                if ($global:__vman_inner_prompt) { & $global:__vman_inner_prompt }
-                else { "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) " }
+                $base = if ($global:__vman_inner_prompt) { & $global:__vman_inner_prompt }
+                        else { "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) " }
+
+                # 가상환경이 켜져 있으면 앞에 (이름) 을 붙인다. 표준 activate 스크립트가
+                # 하는 일과 같다. $env:VMAN_VENV_PROMPT = '0' 이면 끈다.
+                # 안쪽 프롬프트가 매번 새로 만들어 주므로 접두어가 쌓이지 않는다.
+                if ($env:VIRTUAL_ENV -and $env:VMAN_VENV_PROMPT -ne '0') {
+                    $name = if ($env:VIRTUAL_ENV_PROMPT) { $env:VIRTUAL_ENV_PROMPT }
+                            else { Split-Path $env:VIRTUAL_ENV -Leaf }
+                    "($name) " + (($base | Out-String) -replace '\r?\n$', '')
+                } else {
+                    $base
+                }
             }
         }
 
