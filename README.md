@@ -18,7 +18,7 @@
 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)가 필요합니다.
 
 ```powershell
-git clone https://github.com/<사용자명>/vman.git
+git clone https://github.com/tbongkim03/vman.git
 cd vman
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install
 ```
@@ -49,7 +49,27 @@ vman current                            # 실제 실행해서 버전 확인
 vman remove node 22.5.1
 ```
 
-전체 명령은 `vman help` 를 보세요.
+### 명령 전체
+
+| 명령 | 하는 일 |
+|---|---|
+| `vman setup` | 폴더 생성 + 사용자 PATH 등록. 최초 1회 |
+| `vman unsetup` | PATH / `JAVA_HOME` 에서 vman 항목 제거. 설치본은 남김 |
+| `vman where` | 루트 경로와 PATH 등록 항목 확인 |
+| `vman list [도구]` | 설치된 버전 목록. `*` 가 현재 버전 (별칭 `ls`) |
+| `vman current` | 현재 버전 + 실제로 실행해서 얻은 버전 문자열 |
+| `vman use <도구> <버전>` | 버전 전환. 부분 일치 허용 |
+| `vman unset <도구>` | 지정 해제 (정션 제거) |
+| `vman available <도구>` | 설치 가능한 버전 조회 |
+| `vman install <도구> <버전>` | 다운로드 후 설치 |
+| `vman import <도구> <이름> <경로>` | 이미 설치된 런타임을 복사 없이 등록 |
+| `vman remove <도구> <버전>` | 설치본 삭제 (별칭 `rm`). `import` 한 것은 링크만 끊음 |
+| `vman help` | 도움말 |
+
+도구 이름은 `python`, `java`, `node` 입니다.
+
+환경변수 `VMAN_ROOT` 를 주면 루트를 바꿀 수 있습니다. 시험용으로 유용합니다
+([DEVELOPING.md](docs/DEVELOPING.md#격리해서-시험하기) 참고).
 
 ## 트레이 앱
 
@@ -131,6 +151,7 @@ PATH에 들어가는 항목은 다음 5개뿐이고, 설치 시 한 번만 추�
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 어떻게 동작하는지, 왜 이렇게 만들었는지
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — 문제 해결
 - [docs/DEVELOPING.md](docs/DEVELOPING.md) — 빌드, 테마 미리보기 하네스
+- [CHANGELOG.md](CHANGELOG.md) — 버전별 변경 내역과 개발 중 해결한 문제들
 
 ## 라이선스
 
