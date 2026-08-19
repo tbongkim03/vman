@@ -143,6 +143,8 @@ src/
 │  ├─ VersionCatalog.cs   설치 가능 버전 목록 (12시간 캐시)
 │  ├─ ShellCode.cs        셸별 대입문 생성 (vman env)
 │  ├─ PowerShellEnv.cs    윈도우 PowerShell 프로필 연동
+│  ├─ VenvManager.cs      폴더별 가상환경 생성/탐색
+│  ├─ ExplorerMenu.cs     탐색기 우클릭 메뉴 (HKCU, 윈도우)
 │  ├─ Doctor.cs           "왜 PATH 에서 안 잡히나" 진단
 │  └─ Settings.cs         테마 설정 저장
 ├─ VMan.Cli/      코어를 부르는 얇은 래퍼 → vman / vman.exe   (net8.0)
@@ -399,7 +401,64 @@ GUI 가 못 하는 일은 **`setup` 보다 먼저 열린 창** 하나뿐입니�
    트레이 자신의 환경이 낡았을 수 있으므로 그대로 물려주지 않는 것이 핵심입니다.
    그대로 물려주면 낡은 창을 하나 더 만드는 셈입니다.
 
-## 9. 트레이 메뉴를 직접 그리는 이유
+## 9. 폴더별 격리는 venv 에 맡긴다
+
+버전 관리자에게 흔히 따라오는 요구가 "프로젝트마다 패키지를 따로 두고 싶다"입니다.
+여기서 pyenv 를 끌어오고 싶어지지만 그건 틀린 도구입니다.
+
+| | 하는 일 | vman 과의 관계 |
+|---|---|---|
+| pyenv / pyenv-win | 파이썬 **버전** 전환 | 같은 일 — 같이 깔면 PATH 앞자리를 다툰다 |
+| venv (표준 모듈) | 폴더별 **패키지** 격리 | 겹치지 않음 — 이쪽을 쓰면 된다 |
+
+그래서 [`VenvManager`](../src/VMan.Core/VenvManager.cs) 는 새 메커니즘을 만들지 않고
+현재 vman 이 가리키는 파이썬으로 `python -m venv` 를 부릅니다. `vman use python 3.12.14`
+뒤에 만든 가상환경은 3.12.14 를 물려받고, `pyvenv.cfg` 의 `home` 이 `current/python`
+(링크 자신)을 가리킵니다.
+
+### 활성화는 이미 있는 장치를 재사용한다
+
+venv 가 딸려 주는 `activate` 스크립트를 부르지 않습니다. 셸마다 `activate` ·
+`activate.fish` · `Activate.ps1` 로 파일이 갈리는데, [8장](#8-한-창에서-연속으로--셸-함수)에서
+만든 `ShellCode` 로 하면 어차피 대입문 몇 줄이면 끝나기 때문입니다.
+
+```
+$ vman env --activate
+export PATH='/proj/.pyenv/bin:/home/me/.local/share/vman/bin:...'
+export VIRTUAL_ENV='/proj/.pyenv'
+unset PYTHONHOME
+```
+
+가상환경 bin 이 vman 경로보다 **앞**에 와야 `python` 과 `pip` 이 가상환경 것으로 잡힙니다.
+이전에 활성화해 둔 가상환경의 bin 은 먼저 걷어내므로 여러 프로젝트를 오가도 PATH 가
+쌓이지 않습니다. 셸 함수가 `venv` · `activate` · `deactivate` 를 가로채므로
+사용자는 eval 을 신경 쓸 필요가 없습니다.
+
+`Find` 는 상위 폴더로 거슬러 올라가며 `pyvenv.cfg` 가 있는 폴더를 찾습니다.
+프로젝트 하위 어디에서 실행해도 잡히게 하려는 것입니다.
+
+### 탐색기 우클릭 메뉴
+
+[`ExplorerMenu`](../src/VMan.Core/ExplorerMenu.cs) 이 `HKCU` 아래에만 씁니다.
+관리자 권한이 필요 없습니다. 두 곳에 따로 등록해야 합니다.
+
+| 키 | 언제 | 탐색기가 넘기는 인자 |
+|---|---|---|
+| `Directory\shell` | 폴더 아이콘을 우클릭 | `%1` |
+| `Directory\Background\shell` | 폴더 안 빈 공간을 우클릭 | `%V` |
+
+하위 메뉴는 `MUIVerb` + `subcommands=""` 조합으로 만듭니다. `subcommands` 를 **빈 문자열**로
+두어야 탐색기가 그 키 아래 `shell\` 하위키들을 펼칩니다. 값이 아예 없으면 하위 메뉴가
+생기지 않습니다. 하위키 이름이 정렬 순서를 정하므로 번호를 붙입니다.
+
+실행은 `vman.exe` 가 아니라 `vman-tray.exe --venv` 에 맡깁니다. 콘솔 앱을 물리면 검은 창이
+번쩍이고 결과도 못 보여주기 때문입니다. 트레이는 WinExe 라 창이 없고, 이 모드에서는
+트레이 아이콘을 만들지 않고 대화상자만 띄운 뒤 끝냅니다(아이콘이 두 개 되면 안 되므로).
+
+> 윈도우 11 은 이런 고전 항목을 「추가 옵션 표시」 안쪽에 넣습니다. 새 상단 메뉴에
+> 올리려면 MSIX 패키징 + `IExplorerCommand` COM 핸들러가 필요해 지원하지 않습니다.
+
+## 10. 트레이 메뉴를 직접 그리는 이유
 
 WinForms 기본 `ContextMenuStrip` 은 왼쪽 회색 이미지 여백, 각진 선택 사각형, 낡은 테두리를
 그립니다. 색만 바꿔서는 "회색 윈도우 메뉴"를 벗어날 수 없어 그리기를 전부 대체했습니다.

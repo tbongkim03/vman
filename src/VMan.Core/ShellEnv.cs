@@ -181,6 +181,18 @@ public static class ShellEnv
                                 eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --reload)"
                                 hash -r 2>/dev/null || true ;;
                         esac ;;
+                    venv|activate)
+                        # 이름을 그대로 넘긴다. 안 넘기면 Find 가 고정 순서로 골라서
+                        # 방금 만든 것과 다른 가상환경이 켜질 수 있다.
+                        if [ -n "$2" ]; then
+                            eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --activate "$2" 2>/dev/null)"
+                        else
+                            eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --activate 2>/dev/null)"
+                        fi
+                        hash -r 2>/dev/null || true ;;
+                    deactivate)
+                        eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --deactivate)"
+                        hash -r 2>/dev/null || true ;;
                     use|unset|install|import|remove|rm)
                         # 셸이 캐시해 둔 예전 경로를 비운다
                         hash -r 2>/dev/null || true ;;

@@ -270,6 +270,47 @@ rm ~/.local/share/vman/downloads/catalog-*.json
 rm ~/.local/share/vman/downloads/python-index.json
 ```
 
+## 가상환경을 만들었는데 pip 이 여전히 전역에 설치됩니다
+
+활성화가 안 된 것입니다. 만들기와 활성화는 별개입니다.
+
+```
+vman activate       # 이 폴더(또는 상위)의 가상환경을 이 창에 적용
+python -c "import sys; print(sys.prefix)"
+```
+
+`sys.prefix` 가 가상환경 폴더를 가리키면 제대로 된 것입니다.
+셸에 vman 함수가 아직 없으면 자동 적용이 안 되니 `vman setup` 을 먼저 하세요.
+
+탐색기 우클릭으로 만든 경우에는 활성화가 되지 않습니다. 만들어 주기만 할 뿐,
+GUI 가 터미널의 환경을 바꿀 수는 없기 때문입니다. 터미널에서 `vman activate` 를 부르세요.
+
+## 탐색기 우클릭 메뉴가 안 보입니다
+
+윈도우 11 은 고전 메뉴 항목을 **「추가 옵션 표시」(Shift+F10)** 안쪽에 넣습니다.
+거기에도 없다면 등록 여부를 확인하세요.
+
+```powershell
+vman menu status
+vman menu install
+```
+
+등록 직후에도 안 보이면 탐색기를 다시 시작하세요.
+
+```powershell
+Stop-Process -Name explorer -Force
+```
+
+## 가상환경 폴더가 탐색기에 그대로 보입니다
+
+`.pyenv` 처럼 점으로 시작하는 이름은 **리눅스에서만** 저절로 숨겨집니다.
+윈도우는 숨김 **속성**으로 감추므로 vman 이 만들 때 속성을 겁니다.
+직접 만든 폴더라면 속성이 없을 수 있습니다.
+
+```powershell
+(Get-Item .\.pyenv -Force).Attributes += 'Hidden'
+```
+
 ## (리눅스) 설치한 Python 이 실행되지 않습니다
 
 vman 이 받아오는 CPython 은 **glibc** 용 빌드입니다. Alpine 같은 musl 계열

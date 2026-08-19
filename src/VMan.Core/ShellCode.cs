@@ -121,6 +121,83 @@ public static class ShellCode
         return sb.ToString();
     }
 
+    /// <summary>
+    /// 가상환경을 이 셸에 활성화하는 코드.
+    ///
+    /// venv 가 딸려 주는 activate 스크립트를 부르지 않고 직접 만든다. 이유가 둘이다.
+    ///   1) 셸마다 activate / activate.fish / Activate.ps1 로 파일이 갈리는데,
+    ///      여기서는 어차피 PATH 대입문 한 줄이면 끝난다.
+    ///   2) vman 경로와의 순서를 우리가 정할 수 있다. 가상환경이 vman 보다 앞이어야
+    ///      pip 과 python 이 가상환경 것으로 잡힌다.
+    /// </summary>
+    public static string Activate(ShellKind kind, Venv venv)
+    {
+        var session = EnvStore.SessionPathEntries();
+
+        // 이전에 활성화해 둔 가상환경이 있으면 그 bin 을 먼저 걷어낸다.
+        // 그래야 가상환경을 옮겨 다녀도 PATH 가 쌓이지 않는다.
+        var stale = PreviousVenvBinDirs();
+        var kept = session.Where(p => !stale.Any(s => SamePath(s, p)));
+
+        string path = string.Join(Platform.PathSeparator, new[] { venv.BinDir }.Concat(kept));
+
+        var sb = new StringBuilder();
+        AppendAssign(sb, kind, "PATH", path);
+        AppendAssign(sb, kind, "VIRTUAL_ENV", venv.Path);
+        // 가상환경 안에서는 PYTHONHOME 이 있으면 오히려 방해가 된다.
+        AppendUnset(sb, kind, "PYTHONHOME");
+        return sb.ToString();
+    }
+
+    /// <summary>가상환경을 이 셸에서 걷어내는 코드.</summary>
+    public static string Deactivate(ShellKind kind)
+    {
+        var stale = PreviousVenvBinDirs();
+        var kept = EnvStore.SessionPathEntries().Where(p => !stale.Any(s => SamePath(s, p)));
+
+        var sb = new StringBuilder();
+        AppendAssign(sb, kind, "PATH", string.Join(Platform.PathSeparator, kept));
+        AppendUnset(sb, kind, "VIRTUAL_ENV");
+        return sb.ToString();
+    }
+
+    /// <summary>지금 활성화되어 있는 가상환경의 bin 경로들 (PATH 에서 뺄 대상).</summary>
+    private static List<string> PreviousVenvBinDirs()
+    {
+        string? active = Environment.GetEnvironmentVariable("VIRTUAL_ENV");
+        if (string.IsNullOrWhiteSpace(active)) return new List<string>();
+
+        var venv = new Venv(active, Path.GetFileName(active.TrimEnd('\\', '/')));
+        return new List<string> { venv.BinDir };
+    }
+
+    private static void AppendAssign(StringBuilder sb, ShellKind kind, string name, string value)
+    {
+        switch (kind)
+        {
+            case ShellKind.PosixShell:
+                sb.AppendLine($"export {name}={PosixQuote(value)}"); break;
+            case ShellKind.Fish:
+                sb.AppendLine($"set -gx {name} {FishQuote(value)}"); break;
+            case ShellKind.PowerShell:
+                sb.AppendLine($"$env:{name} = {PowerShellQuote(value)}"); break;
+            case ShellKind.Cmd:
+                sb.AppendLine($"set \"{name}={value}\""); break;
+        }
+    }
+
+    private static void AppendUnset(StringBuilder sb, ShellKind kind, string name)
+    {
+        switch (kind)
+        {
+            case ShellKind.PosixShell: sb.AppendLine($"unset {name}"); break;
+            case ShellKind.Fish: sb.AppendLine($"set -e {name}"); break;
+            case ShellKind.PowerShell:
+                sb.AppendLine($"Remove-Item Env:\\{name} -ErrorAction SilentlyContinue"); break;
+            case ShellKind.Cmd: sb.AppendLine($"set \"{name}=\""); break;
+        }
+    }
+
     /// <summary>셸에 심어 둔 vman 함수가 없을 때 사람이 직접 칠 한 줄.</summary>
     public static string HowToApply(ShellKind kind) => kind switch
     {

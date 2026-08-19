@@ -70,6 +70,11 @@ vman doctor                             # PATH에서 왜 안 잡히는지 진단
 vman env                                # 이 셸에 적용할 코드 출력 (eval 용)
 vman reload                             # 이 창을 새 터미널과 같은 환경으로 다시 읽기
 
+vman venv                               # 이 폴더에 가상환경 생성 + 활성화
+vman activate                           # 이 폴더의 가상환경 적용
+vman deactivate                         # 해제
+vman menu install                       # 탐색기 우클릭 메뉴 등록 (윈도우)
+
 vman available python                   # 받을 수 있는 버전 조회
 vman install python 3.12                # 접두어를 주면 최신 패치 (→ 3.12.14)
 vman install java 21                    # Temurin JDK
@@ -184,6 +189,56 @@ export JAVA_HOME='/home/me/.local/share/vman/current/java'
 > 윈도우는 PowerShell 프로필(`$PROFILE`). 둘 다 마커 사이 두 줄뿐이고,
 > 실제 내용은 vman이 관리하는 `env.sh` / `env.ps1` 한 장에 있습니다.
 > `vman unsetup` 이 정확히 걷어냅니다.
+
+## 폴더별 pip 격리 — 가상환경
+
+프로젝트마다 패키지를 따로 두려면 가상환경이 필요합니다. vman 이 만들어 줍니다.
+
+```bash
+cd ~/projects/myapp
+vman venv                 # .pyenv 생성 + 이 창에서 바로 활성화
+pip install requests      # 이 폴더에만 설치됩니다
+```
+
+`vman use python` 으로 지정해 둔 버전을 그대로 물려받습니다.
+`.pyenv` 는 윈도우에서도 **실제로 숨겨집니다** — 점 접두어가 아니라 숨김 속성을 겁니다.
+
+```bash
+vman venv                 # .pyenv (기본, 숨김)
+vman venv pyenv           # 이름 지정
+vman activate             # 이 폴더(또는 상위)의 가상환경을 이 창에 적용
+vman deactivate           # 해제
+```
+
+`activate` 는 상위 폴더까지 거슬러 올라가며 찾으므로 프로젝트 하위 어디에서 실행해도 됩니다.
+`.pyenv` · `pyenv` · `.venv` · `venv` · `env` 를 인식합니다.
+
+> **pyenv 를 쓰지 않는 이유.** `pyenv`(와 `pyenv-win`)는 파이썬 **버전** 관리자입니다.
+> vman 이 하는 일과 같아서 둘을 같이 깔면 PATH 앞자리를 두고 다툽니다.
+> 폴더별로 패키지를 가르는 것은 파이썬에 내장된 `venv` 모듈이 하는 일이라,
+> vman 은 버전 전환만 맡고 격리는 venv 에 맡긴 뒤 둘을 이어 주기만 합니다.
+>
+> 폴더 이름이 `pyenv` 인 것은 취향입니다. 편집기(VS Code, PyCharm)가 자동으로 찾아 주는
+> 관례적인 이름은 `.venv` 이므로, 자동 인식을 원하면 `vman venv .venv` 를 쓰세요.
+
+### 탐색기 우클릭 (윈도우)
+
+```powershell
+vman menu install         # 등록
+vman menu uninstall       # 해제
+```
+
+폴더를 우클릭하거나 폴더 안 빈 공간을 우클릭하면:
+
+```
+vman 가상환경 만들기  ▸  .pyenv  (숨김)
+                         pyenv
+```
+
+콘솔 창이 번쩍이지 않도록 `vman-tray.exe` 가 처리하고 결과만 대화상자로 알립니다.
+
+> 윈도우 11 은 이런 고전 메뉴 항목을 **「추가 옵션 표시」(Shift+F10)** 안쪽에 넣습니다.
+> 새 상단 메뉴에 직접 올리려면 MSIX 로 패키징한 COM 핸들러가 필요해서 지원하지 않습니다.
 
 ## `vman doctor`
 
@@ -322,7 +377,9 @@ PATH에 들어가는 항목은 설치 시 한 번만 추가됩니다.
 
 ## 알려진 제약
 
-- 전역 전환만 지원합니다. 프로젝트 폴더별 자동 전환은 심(shim) 방식이 필요합니다.
+- 파이썬 **버전** 전환은 전역입니다. 폴더별 자동 전환은 심(shim) 방식이 필요합니다.
+  다만 **패키지**는 `vman venv` 로 폴더별로 가를 수 있습니다.
+- 가상환경 활성화는 폴더에 들어갈 때 자동으로 되지 않습니다. `vman activate` 를 부르세요.
 - 윈도우: 서명되지 않은 exe이므로 SmartScreen 경고가 뜰 수 있습니다.
 - 윈도우: `JAVA_HOME` 은 레지스트리 값이라 이미 열린 터미널에는 반영되지 않습니다.
   (값 자체는 고정이라 버전 전환으로는 바뀌지 않습니다.)

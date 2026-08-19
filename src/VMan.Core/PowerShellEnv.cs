@@ -168,6 +168,14 @@ public static class PowerShellEnv
                     'setup'   { $apply = @('env', '--shell', 'powershell') }
                     'unsetup' { $apply = @('env', '--shell', 'powershell', '--revert') }
                     'reload'  { $apply = @('env', '--shell', 'powershell', '--reload') }
+                    { $_ -in 'venv', 'activate' } {
+                        # 이름을 그대로 넘긴다. 안 넘기면 방금 만든 것과 다른 가상환경이 켜질 수 있다.
+                        $apply = @('env', '--shell', 'powershell', '--activate')
+                        if ($args.Count -gt 1 -and -not $args[1].ToString().StartsWith('-')) {
+                            $apply += $args[1]
+                        }
+                    }
+                    'deactivate' { $apply = @('env', '--shell', 'powershell', '--deactivate') }
                     'doctor'  {
                         # --fix 를 준 경우에만. 그냥 진단할 때 환경을 건드리면 안 된다.
                         if ($args -contains '--fix' -or $args -contains '-f') {

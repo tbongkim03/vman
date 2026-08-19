@@ -19,6 +19,10 @@ internal static class Program
                 "doctor"    => CmdDoctor(args.Skip(1).ToArray()),
                 "env"       => CmdEnv(args.Skip(1).ToArray()),
                 "reload"    => CmdReload(),
+                "venv"      => CmdVenv(args.Skip(1).ToArray()),
+                "activate"  => CmdActivate(args.Skip(1).ToArray()),
+                "deactivate"=> CmdDeactivate(),
+                "menu"      => CmdMenu(args.Skip(1).ToArray()),
                 "list" or "ls" => CmdList(args.Skip(1).ToArray()),
                 "use"       => CmdUse(args.Skip(1).ToArray()),
                 "unset"     => CmdUnset(args.Skip(1).ToArray()),
@@ -117,6 +121,115 @@ internal static class Program
         return 0;
     }
 
+    // ---------- 가상환경 ----------
+
+    /// <summary>
+    /// 현재 디렉터리(또는 --dir)에 가상환경을 만든다.
+    /// 셸 함수가 있으면 만든 즉시 이 창에서 활성화까지 된다.
+    /// </summary>
+    private static int CmdVenv(string[] rest)
+    {
+        string dir = Environment.CurrentDirectory;
+        int d = Array.FindIndex(rest, a => a is "--dir" or "-d");
+        if (d >= 0)
+        {
+            if (d + 1 >= rest.Length) return Fail("--dir 뒤에 폴더 경로가 필요합니다.");
+            dir = rest[d + 1];
+            rest = rest.Where((_, i) => i != d && i != d + 1).ToArray();
+        }
+
+        string name = rest.FirstOrDefault(a => !a.StartsWith('-')) ?? VenvManager.DefaultName;
+
+        var venv = VenvManager.Create(dir, name, new Progress<string>(Console.WriteLine));
+        Console.WriteLine($"파이썬: {VenvManager.Probe(venv)}");
+
+        if (RanThroughWrapper())
+        {
+            Console.WriteLine("이 창에서 활성화했습니다. 이제 pip 은 여기에만 설치합니다.");
+            return 0;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("활성화하려면:");
+        Console.WriteLine($"  {ActivateHint()}");
+        return 0;
+    }
+
+    /// <summary>이 폴더(또는 위쪽)에 있는 가상환경을 활성화한다.</summary>
+    private static int CmdActivate(string[] rest)
+    {
+        string start = rest.FirstOrDefault(a => !a.StartsWith('-')) ?? Environment.CurrentDirectory;
+
+        var venv = (VenvManager.Resolve(Environment.CurrentDirectory, start)
+                    ?? VenvManager.Find(start))
+                   ?? throw new DirectoryNotFoundException(
+                       $"{Path.GetFullPath(start)} 및 상위 폴더에서 가상환경을 찾지 못했습니다. "
+                       + "`vman venv` 로 만드세요.");
+
+        Console.WriteLine($"가상환경: {venv.Path}");
+        Console.WriteLine($"파이썬  : {VenvManager.Probe(venv)}");
+
+        if (!RanThroughWrapper())
+        {
+            Console.WriteLine();
+            Console.WriteLine("이 창에 적용하려면:");
+            Console.WriteLine($"  {ActivateHint()}");
+        }
+        return 0;
+    }
+
+    private static int CmdDeactivate()
+    {
+        var active = VenvManager.Active();
+        Console.WriteLine(active is null
+            ? "활성화된 가상환경이 없습니다."
+            : $"가상환경을 해제했습니다: {active.Path}");
+
+        if (!RanThroughWrapper())
+        {
+            Console.WriteLine();
+            Console.WriteLine("이 창에 적용하려면:");
+            Console.WriteLine($"  {ShellCode.HowToApply(ShellCode.Detect()).Replace("vman env", "vman env --deactivate")}");
+        }
+        return 0;
+    }
+
+    private static string ActivateHint()
+        => ShellCode.HowToApply(ShellCode.Detect()).Replace("vman env", "vman env --activate");
+
+    /// <summary>탐색기 우클릭 메뉴 등록/해제. 윈도우 전용.</summary>
+    private static int CmdMenu(string[] rest)
+    {
+        if (!Platform.IsWindows)
+            return Fail("탐색기 우클릭 메뉴는 윈도우 전용입니다.");
+
+        string action = rest.FirstOrDefault() ?? "status";
+        switch (action)
+        {
+            case "install":
+                ExplorerMenu.Install();
+                Console.WriteLine("탐색기 우클릭 메뉴를 등록했습니다.");
+                Console.WriteLine("폴더를 우클릭하면 「vman 가상환경 만들기」가 보입니다.");
+                Console.WriteLine();
+                Console.WriteLine("윈도우 11 은 이런 항목을 「추가 옵션 표시」(Shift+F10) 안쪽에 넣습니다.");
+                return 0;
+
+            case "uninstall":
+                ExplorerMenu.Uninstall();
+                Console.WriteLine("탐색기 우클릭 메뉴를 제거했습니다.");
+                return 0;
+
+            case "status":
+                Console.WriteLine(ExplorerMenu.IsInstalled()
+                    ? "등록되어 있습니다."
+                    : "등록되어 있지 않습니다. `vman menu install` 로 등록하세요.");
+                return 0;
+
+            default:
+                return Fail("사용법: vman menu <install|uninstall|status>");
+        }
+    }
+
     /// <summary>
     /// 이 셸에 vman 환경을 적용하는 코드를 표준출력으로 뱉는다. eval 되는 것이 전제다.
     /// 안내 문구는 절대 표준출력으로 내보내지 않는다 — 그대로 실행되어 버린다.
@@ -125,6 +238,8 @@ internal static class Program
     {
         bool revert = rest.Any(a => a is "--revert" or "-r");
         bool reload = rest.Any(a => a is "--reload");
+        bool activate = rest.Any(a => a is "--activate");
+        bool deactivate = rest.Any(a => a is "--deactivate");
 
         ShellKind shell;
         int idx = Array.FindIndex(rest, a => a is "--shell" or "-s");
@@ -134,13 +249,38 @@ internal static class Program
             shell = ShellCode.Parse(rest[idx + 1])
                     ?? throw new ArgumentException(
                         $"알 수 없는 셸: {rest[idx + 1]} (posix, fish, powershell, cmd 중 하나)");
+
+            // --shell 의 값을 여기서 떼어낸다. 안 그러면 그 값("posix")이
+            // 아래에서 위치 인자로 잡혀 가상환경 이름으로 해석된다.
+            rest = rest.Where((_, i) => i != idx && i != idx + 1).ToArray();
         }
         else
         {
             shell = ShellCode.Detect();
         }
 
-        Console.Out.Write(revert ? ShellCode.Revert(shell)
+        if (activate)
+        {
+            // 대상을 명시할 수 있다. `vman venv .venv` 처럼 방금 만든 것을 정확히 켜야 하는데,
+            // 이름을 안 주면 Find 가 고정 순서로 골라서 엉뚱한 것이 켜진다.
+            string? target = rest.FirstOrDefault(a => a.Length > 0 && !a.StartsWith('-'));
+
+            var venv = target is null
+                ? VenvManager.Find(Environment.CurrentDirectory)
+                : VenvManager.Resolve(Environment.CurrentDirectory, target);
+
+            // eval 되는 자리라 실패해도 표준출력은 비워 둔다. 안내는 표준오류로.
+            if (venv is null)
+            {
+                Console.Error.WriteLine("가상환경을 찾지 못했습니다. `vman venv` 로 만드세요.");
+                return 1;
+            }
+            Console.Out.Write(ShellCode.Activate(shell, venv));
+            return 0;
+        }
+
+        Console.Out.Write(deactivate ? ShellCode.Deactivate(shell)
+                          : revert ? ShellCode.Revert(shell)
                           : reload ? ShellCode.Reload(shell)
                           : ShellCode.Apply(shell));
         return 0;
@@ -409,6 +549,12 @@ internal static class Program
           vman doctor [--fix]               왜 PATH 에서 안 잡히는지 진단
           vman env [--shell X] [--revert]    이 셸에 적용할 코드를 출력 (eval 용)
           vman reload                       이 창의 환경을 새 터미널과 같게 다시 읽기
+
+        가상환경 (폴더별 pip 격리)
+          vman venv [이름]                  이 폴더에 가상환경 생성 (기본 .pyenv)
+          vman activate                     이 폴더의 가상환경을 이 창에 적용
+          vman deactivate                   가상환경 해제
+          vman menu install                 탐색기 우클릭 메뉴 등록 (윈도우)
           vman unsetup                      PATH / JAVA_HOME 원복
           vman where                        경로와 PATH 등록 항목 확인
 
