@@ -3,7 +3,9 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/) 를 따르고,
 버전은 [유의적 버전](https://semver.org/lang/ko/) 을 따릅니다.
 
-## [미출시]
+## [0.2.0] - 2026-08-19
+
+윈도우 전용에서 벗어나고, 폴더별 가상환경과 진단기를 얹었습니다.
 
 ### 추가
 
@@ -153,4 +155,5 @@
 - 서명되지 않은 exe 이므로 SmartScreen 경고가 뜰 수 있습니다.
 - x64 / arm64 윈도우만 지원합니다.
 
+[0.2.0]: https://github.com/tbongkim03/vman/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tbongkim03/vman/releases/tag/v0.1.0
