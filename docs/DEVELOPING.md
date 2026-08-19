@@ -56,12 +56,16 @@ packaging/build-msix.ps1             컴파일 → 패키지 → 서명 → 설�
 ```
 
 ```powershell
-.\packaginguild-msix.ps1            # 빌드 + 서명
-.\packaginguild-msix.ps1 -Install   # + 사이드로드
-.\packaginguild-msix.ps1 -Uninstall
+.\packaging\build-msix.ps1            # 빌드 + 서명
+.\packaging\build-msix.ps1 -Install   # + 사이드로드
+.\packaging\build-msix.ps1 -Uninstall
 ```
 
-**필요한 것** (셋 다 관리자 권한을 한 번씩 요구합니다)
+**필요한 것**
+
+빌드와 서명까지는 **관리자 권한 없이** 됩니다. 자체 서명 인증서가 `CurrentUser\My` 에
+만들어지기 때문입니다. 관리자 권한은 (1) 빌드 도구 설치와 (2) 사이드로드할 때
+인증서를 시스템 신뢰 저장소에 넣을 때만 필요합니다.
 
 1. Build Tools + C++ 워크로드
    ```powershell
@@ -79,15 +83,32 @@ packaging/build-msix.ps1             컴파일 → 패키지 → 서명 → 설�
 
 ### 왜 스파스 패키지인가
 
-실제 파일은 패키지에 넣지 않고 `%LOCALAPPDATA%\vman\bin` 을 그대로 가리킵니다
-(`windows.externalLocation`). `vman-tray.exe` 가 68MB 라 복사하면 설치본이 두 벌이 되고
-vman 을 다시 빌드할 때마다 패키지도 다시 만들어야 합니다.
+실제 파일은 패키지에 넣지 않고 `%LOCALAPPDATA%\vman\bin` 을 그대로 가리킵니다.
+`vman-tray.exe` 가 66MB 라 복사하면 설치본이 두 벌이 되고 vman 을 다시 빌드할 때마다
+패키지도 다시 만들어야 합니다.
 
-외부 경로에 사용자 이름이 들어가므로 **매니페스트는 기계마다 새로 만들어야 합니다.**
-`build-msix.ps1` 이 템플릿을 채웁니다.
+외부 경로는 **매니페스트에 적지 않습니다.** `Properties` 의
+`uap10:AllowExternalContent` 로 "패키지 밖 파일을 쓰겠다"고 선언만 하고, 실제 경로는
+설치할 때 `Add-AppxPackage -ExternalLocation` 으로 넘깁니다.
+
+### 매니페스트 네임스페이스 (여기서 제일 많이 막힙니다)
+
+SDK 스키마(`Windows Kits\10\Include\<버전>\winrt\*.xsd`)를 직접 읽어야 알 수 있는
+것들입니다. 셋 다 `makeappx` 가 스키마 검증에서 거부합니다.
+
+| 요소 | 올바른 네임스페이스 | 왜 |
+|---|---|---|
+| `Extension` / `FileExplorerContextMenus` | **desktop4** | `DesktopManifestSchema_v4.xsd` 에만 정의됨 |
+| `ItemType` / `Verb` | **desktop5** | desktop4 의 `Type` 은 `*` 나 `.확장자`만 받습니다(`ST_FileTypeOrStar`). `Directory` 와 `Directory\Background` 를 받는 것은 desktop5 의 `ST_FileTypeOrStarWithDirectory` 뿐이고, v4 의 `FileExplorerContextMenus` 가 `desktop5:ItemType` 을 자식으로 허용합니다 |
+| 외부 위치 | 없음 | `windows.externalLocation` 이라는 카테고리는 스키마에 존재하지 않습니다 |
+
+두 스키마 모두 `elementFormDefault="qualified"` 이므로 `Verb` 에도 접두어가 붙습니다.
+`desktop10:ItemType` 을 쓰면 `Drive` 와 `DesktopBackground` 까지 걸 수 있습니다.
 
 ### 주의
 
+- 소스에 한글 문자열이 있으므로 `cl` 에 **`/utf-8` 이 필요합니다.** 없으면 MSVC 가
+  BOM 없는 소스를 시스템 코드페이지(949)로 읽어 `C2001`(상수에 줄 바꿈 문자)로 멈춥니다.
 - 매니페스트의 `Publisher` 는 서명 인증서의 `Subject` 와 **글자 하나까지** 같아야 합니다.
 - `com:Class Id` 와 `desktop5:Verb Clsid` 는 C++ 의 `__declspec(uuid(...))` 와 같아야 합니다.
 - 하위 메뉴를 가지려면 루트가 `GetFlags` 에서 `ECF_HASSUBCOMMANDS` 를 돌려줘야 합니다.

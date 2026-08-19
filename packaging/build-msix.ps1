@@ -1,4 +1,4 @@
-<#
+﻿<#
   vman 셸 확장(윈도우 11 상단 컨텍스트 메뉴) 빌드 · 서명 · 설치 스크립트.
 
     .\build-msix.ps1              빌드 + 패키지 + 서명
@@ -88,9 +88,15 @@ $dll = Join-Path $outDir 'VMan.ShellExt.dll'
 
 # vcvars 를 먹인 cmd 안에서 cl 을 부른다. MSBuild 프로젝트를 두지 않는 이유는
 # 소스가 한 장뿐이라 vcxproj 가 순수한 부담이기 때문이다.
+# /utf-8 이 없으면 MSVC 는 BOM 없는 소스를 시스템 코드페이지(한국어 윈도우면 949)로
+# 읽는다. 소스에 한글 문자열 리터럴이 있으므로 UTF-8 바이트열이 깨져
+# "상수에 줄 바꿈 문자가 있습니다"(C2001) 로 컴파일이 멈춘다.
 $clArgs = @(
-    '/nologo', '/W4', '/WX-', '/EHsc', '/O2', '/MT', '/std:c++17',
+    '/nologo', '/W4', '/WX-', '/EHsc', '/O2', '/MT', '/std:c++17', '/utf-8',
     '/D_UNICODE', '/DUNICODE', '/DNDEBUG',
+    # 안 주면 cl 이 현재 폴더에 .obj 를 흘린다 (저장소 루트가 지저분해진다).
+    # 폴더로 주면 끝의 \ 가 닫는 따옴표를 이스케이프하므로 파일명까지 적는다.
+    "/Fo`"$outDir\VManShellExt.obj`"",
     "`"$srcDir\VManShellExt.cpp`"",
     '/link', '/DLL', '/NOLOGO',
     "/DEF:`"$srcDir\VMan.ShellExt.def`"",
@@ -133,10 +139,10 @@ $stage = Join-Path $outDir 'stage'
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'Assets') | Out-Null
 
+# 외부 경로는 매니페스트가 아니라 Add-AppxPackage -ExternalLocation 으로 넘어간다.
 $manifest = (Get-Content (Join-Path $PSScriptRoot 'AppxManifest.template.xml') -Raw).
     Replace('{{PUBLISHER}}', $publisher).
-    Replace('{{VERSION}}', $Version).
-    Replace('{{EXTERNAL_LOCATION}}', $vmanBin)
+    Replace('{{VERSION}}', $Version)
 Set-Content -Path (Join-Path $stage 'AppxManifest.xml') -Value $manifest -Encoding UTF8
 
 # 로고는 있기만 하면 된다(앱 목록에 안 나오는 껍데기라). 단색 PNG 를 만든다.

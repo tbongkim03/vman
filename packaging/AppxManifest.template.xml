@@ -13,10 +13,11 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
   xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 desktop5 com rescap">
+  IgnorableNamespaces="uap uap10 desktop4 desktop5 com rescap">
 
   <!-- Publisher 는 서명 인증서의 Subject 와 글자 하나까지 같아야 한다. -->
   <Identity Name="VMan.ShellExt"
@@ -71,17 +72,30 @@
           </com:ComServer>
         </com:Extension>
 
-        <!-- 폴더 아이콘 우클릭과 폴더 안 빈 공간 우클릭 양쪽에 건다. -->
-        <desktop5:Extension Category="windows.fileExplorerContextMenus">
-          <desktop5:FileExplorerContextMenus>
+        <!--
+          폴더 아이콘 우클릭과 폴더 안 빈 공간 우클릭 양쪽에 건다.
+
+          네임스페이스가 두 개 섞이는데, SDK 스키마상 그래야 한다.
+            Extension / FileExplorerContextMenus  desktop4 에만 정의됨
+                                                  (DesktopManifestSchema_v4.xsd)
+            ItemType                              desktop4 의 Type 은 `*` 나 `.확장자`
+                                                  만 받는다(ST_FileTypeOrStar).
+                                                  Directory 를 받는 것은 desktop5 의
+                                                  ItemType(ST_FileTypeOrStarWithDirectory)
+                                                  뿐이고, v4 의 FileExplorerContextMenus 가
+                                                  desktop5:ItemType 을 자식으로 허용한다.
+          두 스키마 모두 elementFormDefault="qualified" 이므로 Verb 에도 접두어가 붙는다.
+        -->
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
             <desktop5:ItemType Type="Directory">
               <desktop5:Verb Id="VManVenv" Clsid="FEE6FAFD-826C-4B04-B553-B3DB7616DB8B" />
             </desktop5:ItemType>
             <desktop5:ItemType Type="Directory\Background">
               <desktop5:Verb Id="VManVenvBackground" Clsid="FEE6FAFD-826C-4B04-B553-B3DB7616DB8B" />
             </desktop5:ItemType>
-          </desktop5:FileExplorerContextMenus>
-        </desktop5:Extension>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
       </Extensions>
     </Application>
   </Applications>
@@ -90,10 +104,12 @@
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 
-  <Extensions>
-    <!-- 패키지 내용이 실제로 사는 곳. vman 이 설치된 bin 폴더를 그대로 쓴다. -->
-    <uap10:Extension Category="windows.externalLocation">
-      <uap10:ExternalLocation Path="{{EXTERNAL_LOCATION}}" />
-    </uap10:Extension>
-  </Extensions>
+  <!--
+    스파스 패키지의 외부 경로는 매니페스트에 적지 않는다.
+    windows.externalLocation 이라는 확장 카테고리는 스키마에 존재하지 않는다
+    (SDK 10.0.26100.0 의 어떤 .xsd 에도 없다). 위 Properties 의
+    uap10:AllowExternalContent 로 "패키지 밖 파일을 쓰겠다"고 선언하고,
+    실제 경로는 설치할 때 넘긴다:
+        Add-AppxPackage -Path <msix> -ExternalLocation <경로>
+  -->
 </Package>

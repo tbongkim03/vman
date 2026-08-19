@@ -47,17 +47,30 @@
   `Directory\shell` 은 `%1`, `Directory\Background\shell` 은 `%V` 로 인자가 달라 따로
   등록합니다. 실행은 `vman-tray.exe --venv` 에 맡깁니다(콘솔 창이 번쩍이지 않도록).
 
-**윈도우 11 상단 컨텍스트 메뉴 (미완성)**
+**윈도우 11 상단 컨텍스트 메뉴**
 
-- `src/VMan.ShellExt` 의 C++ `IExplorerCommand` 구현과 `packaging/` 의 MSIX 스크립트는
-  **아직 한 번도 컴파일되지 않았습니다.** MSVC · Windows SDK 가 없어 빌드하지 못했습니다.
-  .NET 솔루션 빌드에는 포함되지 않으므로 기존 기능에는 영향이 없습니다.
+- `src/VMan.ShellExt` 의 C++ `IExplorerCommand` 구현과 `packaging/` 의 MSIX 패키징.
+  `packaging/build-msix.ps1` 로 컴파일 → 패키지 → 서명까지 **관리자 권한 없이** 됩니다.
+  사이드로드만 인증서를 `LocalMachine\TrustedPeople` 에 넣어야 해서 관리자 권한이 필요합니다.
+- 아직 **실기에서 메뉴가 뜨는 것까지는 확인하지 못했습니다.** 빌드·서명 산출물과
+  DLL 의 COM 진입점(`DllGetClassObject` · `DllCanUnloadNow`)까지만 검증했습니다.
 
 ### 수정
 
 - `vman env` 의 `--shell` 값이 위치 인자로 잡혀 가상환경 이름으로 해석되던 문제.
   (`env --shell posix --activate` 가 "posix" 라는 이름을 찾다 실패)
 - `vman help` 에서 `unsetup` 과 `where` 가 "가상환경" 섹션에 잘못 들어가 있던 문제.
+- 셸 확장이 컴파일되지 않던 문제 네 가지. 첫 빌드에서 드러났습니다.
+  - `cl` 에 `/utf-8` 이 없어 MSVC 가 BOM 없는 소스를 코드페이지 949 로 읽었습니다.
+    한글 문자열 리터럴이 깨져 `C2001` 로 멈췄습니다.
+  - `build-msix.ps1` 이 BOM 없는 UTF-8 이라 PowerShell 5.1 이 한글 출력을 깨뜨렸습니다.
+  - 매니페스트가 `desktop5:Extension` 을 썼습니다. `FileExplorerContextMenus` 는
+    **desktop4** 에만 정의되어 있습니다. 반대로 `ItemType` 은 desktop4 의 `Type` 이
+    `*` 나 `.확장자`만 받으므로 `Directory` 를 쓰려면 **desktop5** 여야 합니다.
+  - 매니페스트에 `windows.externalLocation` 확장을 넣었는데 그런 카테고리는 스키마에
+    없습니다. 외부 경로는 `Add-AppxPackage -ExternalLocation` 으로 넘깁니다.
+- `docs/DEVELOPING.md` 의 빌드 명령에 백스페이스 제어문자(0x08)가 박혀 있어
+  `.\packaging\build-msix.ps1` 이 `.\packaginguild-msix.ps1` 로 보이던 문제.
 - 트레이 전환 알림 문구를 사실에 맞게 고쳤습니다. 링크만 바뀌므로 이미 열린 터미널에도
   즉시 반영됩니다. `setup` 보다 먼저 열린 창일 때만 문구가 달라집니다.
 - `unsetup` 이 vman 블록만 있던 rc / 프로필은 파일째 치웁니다.
