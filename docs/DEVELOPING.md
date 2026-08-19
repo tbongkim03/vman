@@ -43,6 +43,57 @@ dotnet build src/VMan.Tray/VMan.Tray.csproj -c Release -r win-x64 \
 `RuntimeIdentifier` / `SelfContained` / `PublishSingleFile` 은 csproj 에 넣지 않고
 빌드 스크립트가 넘깁니다. csproj 에 `win-x64` 를 박아두면 리눅스 게시가 막힙니다.
 
+## 셸 확장 (윈도우 11 상단 컨텍스트 메뉴)
+
+`vman menu install` 이 등록하는 고전 메뉴는 윈도우 11 에서 「추가 옵션 표시」 안쪽에
+들어갑니다. 상단에 바로 올리려면 MSIX 로 패키징한 `IExplorerCommand` COM 핸들러가
+필요합니다.
+
+```
+src/VMan.ShellExt/VManShellExt.cpp   IExplorerCommand 구현 (C++, WRL)
+packaging/AppxManifest.template.xml  스파스 패키지 매니페스트
+packaging/build-msix.ps1             컴파일 → 패키지 → 서명 → 설치
+```
+
+```powershell
+.\packaginguild-msix.ps1            # 빌드 + 서명
+.\packaginguild-msix.ps1 -Install   # + 사이드로드
+.\packaginguild-msix.ps1 -Uninstall
+```
+
+**필요한 것** (셋 다 관리자 권한을 한 번씩 요구합니다)
+
+1. Build Tools + C++ 워크로드
+   ```powershell
+   winget install Microsoft.VisualStudio.2022.BuildTools -e --override `
+     "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+   ```
+2. 자체 서명 인증서를 `LocalMachine\TrustedPeople` 에 등록 (스크립트가 명령을 알려줍니다)
+3. 개발자 모드
+
+### 왜 C++ 인가
+
+이 DLL 은 탐색기가 띄우는 COM 대리자에 로드됩니다. CLR 을 끌어들이면 안 되므로
+런타임 의존성이 없어야 합니다. C# NativeAOT 도 가능하지만 어차피 MSVC 링커가
+필요해서 준비물이 같습니다.
+
+### 왜 스파스 패키지인가
+
+실제 파일은 패키지에 넣지 않고 `%LOCALAPPDATA%\vman\bin` 을 그대로 가리킵니다
+(`windows.externalLocation`). `vman-tray.exe` 가 68MB 라 복사하면 설치본이 두 벌이 되고
+vman 을 다시 빌드할 때마다 패키지도 다시 만들어야 합니다.
+
+외부 경로에 사용자 이름이 들어가므로 **매니페스트는 기계마다 새로 만들어야 합니다.**
+`build-msix.ps1` 이 템플릿을 채웁니다.
+
+### 주의
+
+- 매니페스트의 `Publisher` 는 서명 인증서의 `Subject` 와 **글자 하나까지** 같아야 합니다.
+- `com:Class Id` 와 `desktop5:Verb Clsid` 는 C++ 의 `__declspec(uuid(...))` 와 같아야 합니다.
+- 하위 메뉴를 가지려면 루트가 `GetFlags` 에서 `ECF_HASSUBCOMMANDS` 를 돌려줘야 합니다.
+- 폴더 안 빈 공간 우클릭은 `IShellItemArray` 가 비어 있습니다. `IObjectWithSite` 로 받은
+  site 에서 `SID_SFolderView` → `IFolderView::GetFolder` 로 현재 폴더를 알아냅니다.
+
 ## 격리해서 시험하기
 
 `VMAN_ROOT` 로 루트를 바꾸면 실제 설치본을 건드리지 않고 시험할 수 있습니다.
