@@ -28,6 +28,14 @@
 - 활성화 안내가 `vman env --activate | Out-String | Invoke-Expression` 이라는 eval 주문을
   먼저 보여줬습니다. 사람이 칠 명령은 `vman activate` 이므로 그것을 앞세우고,
   eval 주문은 셸 연동이 아직 안 된 경우의 대비책으로 뒤에 둡니다.
+- **윈도우에서 `vman doctor` 가 셸 연동을 아예 검사하지 않았습니다.**
+  `if (Platform.IsWindows) return;` 으로 통째로 건너뛰고 있었습니다. 그래서
+  `vman activate` 가 이 창에 안 먹는 상태에서도 doctor 는 "다 정상" 이라고 답했습니다.
+  이제 `env.ps1` 과 `$PROFILE` 블록을 확인하고, 설정은 되어 있는데 이 창이 그보다
+  먼저 열린 경우도 구분해서 알려줍니다.
+- 셸 연동이 없을 때 `vman activate` 가 eval 주문만 던지고 끝났습니다. 그것은 우회책이라
+  사용자가 매번 그것을 쳐야 하는 줄 알게 됩니다. 이제 왜 적용되지 않았는지 말하고
+  `vman setup` 을 영구 해결책으로 먼저 안내합니다.
 
 ## [0.2.0] - 2026-08-19
 

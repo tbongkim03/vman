@@ -161,16 +161,14 @@ internal static class Program
 
     /// <summary>
     /// 활성화 방법 안내. 사람이 칠 명령(`vman activate`)을 앞세운다.
-    /// eval 주문은 셸 연동이 아직 안 된 경우의 대비책일 뿐이라 뒤로 뺀다.
+    /// 여기까지 왔다는 것은 셸 연동이 없다는 뜻이므로 그 사실도 같이 알린다.
     /// </summary>
     private static void PrintActivateHelp()
     {
         Console.WriteLine();
         Console.WriteLine("활성화하려면:");
         Console.WriteLine("  vman activate");
-        Console.WriteLine();
-        Console.WriteLine("셸 연동이 안 되어 있다면 (`vman setup` 후 새 셸) 대신:");
-        Console.WriteLine($"  {ActivateHint()}");
+        PrintWrapperMissing();
     }
 
     /// <summary>이 폴더(또는 위쪽)에 있는 가상환경을 활성화한다.</summary>
@@ -187,13 +185,28 @@ internal static class Program
         Console.WriteLine($"가상환경: {venv.Path}");
         Console.WriteLine($"파이썬  : {VenvManager.Probe(venv)}");
 
-        if (!RanThroughWrapper())
-        {
-            Console.WriteLine();
-            Console.WriteLine("이 창에 적용하려면:");
-            Console.WriteLine($"  {ActivateHint()}");
-        }
+        if (!RanThroughWrapper()) PrintWrapperMissing();
         return 0;
+    }
+
+    /// <summary>
+    /// 셸 연동이 없어서 이 창에 적용되지 못했을 때의 안내.
+    ///
+    /// eval 주문만 던지면 사용자는 매번 그것을 쳐야 하는 줄 안다. 그것은 우회책이고,
+    /// 진짜 해결은 `vman setup` 이다. 원인을 먼저 말하고 영구 해결책을 앞세운다.
+    /// </summary>
+    private static void PrintWrapperMissing()
+    {
+        Console.WriteLine();
+        Console.WriteLine("다만 이 창에는 적용되지 않았습니다 — 셸 연동이 되어 있지 않습니다.");
+        Console.WriteLine("프로세스는 자기를 부른 셸의 환경을 바꿀 수 없어서, vman 이 셸 안에");
+        Console.WriteLine("함수로 심겨 있어야 합니다.");
+        Console.WriteLine();
+        Console.WriteLine("한 번만 해두면 됩니다:");
+        Console.WriteLine("  vman setup        그리고 새 터미널을 여세요");
+        Console.WriteLine();
+        Console.WriteLine("지금 이 창에만 적용하려면:");
+        Console.WriteLine($"  {ActivateHint()}");
     }
 
     private static int CmdDeactivate()

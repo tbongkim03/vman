@@ -122,10 +122,10 @@ public static class Doctor
             + "    (이 창에서 python 을 치면 스토어 설치 안내가 뜨는 것이 바로 이 때문입니다.)"));
     }
 
-    /// <summary>리눅스: rc 파일에 vman 블록이 심겨 있는지, 그리고 그게 지금 셸에 먹었는지.</summary>
+    /// <summary>rc 파일(리눅스) 또는 프로필(윈도우)에 vman 블록이 심겨 있는지.</summary>
     private static void CheckShellIntegration(List<DoctorFinding> findings)
     {
-        if (Platform.IsWindows) return;
+        if (Platform.IsWindows) { CheckPowerShellIntegration(findings); return; }
 
         if (!File.Exists(Layout.ShellEnvFile))
         {
@@ -146,6 +146,49 @@ public static class Doctor
 
         findings.Add(new DoctorFinding(DoctorLevel.Ok,
             "셸 설정이 연결되어 있습니다", string.Join(", ", rcFiles)));
+    }
+
+    /// <summary>
+    /// 윈도우: env.ps1 과 $PROFILE 연동.
+    ///
+    /// 이게 없으면 PATH 는 멀쩡한데 `vman use` / `vman activate` 가 지금 창에 먹지 않는다.
+    /// 프로세스는 자기를 부른 셸의 환경을 바꿀 수 없어서 셸 안에 함수가 있어야 하는데,
+    /// 그 사실이 겉으로 드러나지 않아 "명령은 성공했다는데 아무 일도 안 난다" 로 보인다.
+    /// 셸 연동이 없던 시절에 setup 을 한 뒤 vman 만 갱신하면 정확히 이 상태가 된다.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static void CheckPowerShellIntegration(List<DoctorFinding> findings)
+    {
+        if (!File.Exists(PowerShellEnv.EnvFile))
+        {
+            findings.Add(new DoctorFinding(DoctorLevel.Error,
+                "셸 연동이 설치되어 있지 않습니다 (env.ps1 없음)",
+                PowerShellEnv.EnvFile,
+                "vman setup 을 실행한 뒤 새 터미널을 여세요."));
+            return;
+        }
+
+        var profiles = PowerShellEnv.InstalledProfiles();
+        if (profiles.Count == 0)
+        {
+            findings.Add(new DoctorFinding(DoctorLevel.Error,
+                "PowerShell 프로필에 vman 블록이 없습니다",
+                "env.ps1 은 있지만 프로필이 그것을 읽지 않습니다.",
+                "vman setup 을 실행한 뒤 새 터미널을 여세요."));
+            return;
+        }
+
+        if (!ViaWrapper())
+        {
+            findings.Add(new DoctorFinding(DoctorLevel.Warn,
+                "이 창에는 셸 연동이 적용되어 있지 않습니다",
+                "설정은 되어 있으나 이 창이 그보다 먼저 열렸습니다.",
+                "새 터미널을 열거나 `vman reload` 를 실행하세요."));
+            return;
+        }
+
+        findings.Add(new DoctorFinding(DoctorLevel.Ok,
+            "셸 연동이 연결되어 있습니다", string.Join(", ", profiles)));
     }
 
     private static void CheckTool(List<DoctorFinding> findings, ToolDef tool)
