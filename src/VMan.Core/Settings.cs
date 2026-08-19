@@ -12,6 +12,12 @@ public sealed class Settings
     /// <summary>"system", "light", "dark".</summary>
     public string Appearance { get; set; } = "system";
 
+    /// <summary>
+    /// 폴더를 옮겨 다닐 때 그 폴더의 가상환경을 자동으로 켜고 끌지.
+    /// 셸이 프롬프트를 그릴 때마다 확인하므로, 끄면 훅이 즉시 아무 일도 하지 않는다.
+    /// </summary>
+    public bool AutoActivateVenv { get; set; } = true;
+
     [JsonIgnore]
     public static string FilePath => Path.Combine(Layout.Root, "settings.json");
 

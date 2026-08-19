@@ -32,8 +32,12 @@ public sealed record Venv(string Path, string Name)
 /// </summary>
 public static class VenvManager
 {
-    /// <summary>탐색기 메뉴와 CLI 가 함께 쓰는 기본 이름들. 첫 번째가 기본값.</summary>
-    public static readonly IReadOnlyList<string> SuggestedNames = new[] { ".pyenv", "pyenv" };
+    /// <summary>
+    /// 탐색기 메뉴와 CLI 가 함께 쓰는 기본 이름들. 첫 번째가 기본값.
+    /// .venv 를 먼저 두는 이유는 이것이 관례라서다 — VS Code 파이썬 확장과 PyCharm 이
+    /// 작업 폴더의 .venv 를 보고 인터프리터를 자동으로 잡는다.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SuggestedNames = new[] { ".venv", "venv" };
 
     public static string DefaultName => SuggestedNames[0];
 
@@ -89,8 +93,9 @@ public static class VenvManager
 
         while (dir is not null)
         {
-            // 흔한 이름을 먼저 보고, 없으면 그 폴더의 하위를 훑는다.
-            foreach (string name in SuggestedNames.Concat(new[] { ".venv", "venv", "env" }))
+            // 관례적인 이름을 순서대로 본다. .pyenv/pyenv 는 예전 버전이 만들던 이름이라
+            // 이미 만들어 둔 사람을 위해 계속 인식한다.
+            foreach (string name in SuggestedNames.Concat(new[] { "env", ".pyenv", "pyenv" }))
             {
                 var candidate = new Venv(Path.Combine(dir.FullName, name), name);
                 if (candidate.IsValid) return candidate;

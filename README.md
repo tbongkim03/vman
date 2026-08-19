@@ -74,6 +74,7 @@ vman venv                               # 이 폴더에 가상환경 생성 + �
 vman activate                           # 이 폴더의 가상환경 적용
 vman deactivate                         # 해제
 vman menu install                       # 탐색기 우클릭 메뉴 등록 (윈도우)
+vman autoactivate on|off                # 폴더 이동 시 자동 활성화
 
 vman available python                   # 받을 수 있는 버전 조회
 vman install python 3.12                # 접두어를 주면 최신 패치 (→ 3.12.14)
@@ -196,30 +197,65 @@ export JAVA_HOME='/home/me/.local/share/vman/current/java'
 
 ```bash
 cd ~/projects/myapp
-vman venv                 # .pyenv 생성 + 이 창에서 바로 활성화
+vman venv                 # .venv 생성 + 이 창에서 바로 활성화
 pip install requests      # 이 폴더에만 설치됩니다
 ```
 
 `vman use python` 으로 지정해 둔 버전을 그대로 물려받습니다.
-`.pyenv` 는 윈도우에서도 **실제로 숨겨집니다** — 점 접두어가 아니라 숨김 속성을 겁니다.
+`.venv` 는 윈도우에서도 **실제로 숨겨집니다** — 점 접두어가 아니라 숨김 속성을 겁니다.
 
 ```bash
-vman venv                 # .pyenv (기본, 숨김)
-vman venv pyenv           # 이름 지정
+vman venv                 # .venv (기본, 숨김)
+vman venv venv            # 이름 지정
 vman activate             # 이 폴더(또는 상위)의 가상환경을 이 창에 적용
 vman deactivate           # 해제
 ```
 
 `activate` 는 상위 폴더까지 거슬러 올라가며 찾으므로 프로젝트 하위 어디에서 실행해도 됩니다.
-`.pyenv` · `pyenv` · `.venv` · `venv` · `env` 를 인식합니다.
+`.venv` · `venv` · `env` 를 인식하고, 예전 버전이 만들던 `.pyenv` · `pyenv` 도 계속 인식합니다.
 
 > **pyenv 를 쓰지 않는 이유.** `pyenv`(와 `pyenv-win`)는 파이썬 **버전** 관리자입니다.
 > vman 이 하는 일과 같아서 둘을 같이 깔면 PATH 앞자리를 두고 다툽니다.
 > 폴더별로 패키지를 가르는 것은 파이썬에 내장된 `venv` 모듈이 하는 일이라,
 > vman 은 버전 전환만 맡고 격리는 venv 에 맡긴 뒤 둘을 이어 주기만 합니다.
 >
-> 폴더 이름이 `pyenv` 인 것은 취향입니다. 편집기(VS Code, PyCharm)가 자동으로 찾아 주는
-> 관례적인 이름은 `.venv` 이므로, 자동 인식을 원하면 `vman venv .venv` 를 쓰세요.
+> 폴더 이름은 `.venv` 가 기본입니다. VS Code 파이썬 확장과 PyCharm 이 작업 폴더의
+> `.venv` 를 보고 인터프리터를 자동으로 잡아 주기 때문입니다. 다른 이름도 됩니다.
+
+### 폴더를 옮기면 자동으로 (기본 켜짐)
+
+프롬프트가 그려질 때마다 현재 폴더(와 그 위쪽)에 가상환경이 있는지 보고 알아서 켜고 끕니다.
+
+```
+~/projects           $ python -V     → 전역 (vman 이 지정한 버전)
+~/projects/myapp     $ python -V     → myapp/.venv       ← 자동
+~/projects/myapp/src $ python -V     → myapp/.venv       ← 위로 찾아 올라감
+~/projects/other     $ python -V     → other/.venv       ← 알아서 전환
+~/projects           $ python -V     → 전역              ← 알아서 해제
+```
+
+끄고 켜기:
+
+```bash
+vman autoactivate          # 현재 상태
+vman autoactivate off
+vman autoactivate on
+```
+
+트레이 메뉴의 **가상환경 자동 활성화** 로도 됩니다.
+
+몇 가지 성질:
+
+- **손으로 켠 것은 건드리지 않습니다.** `vman activate` 로 직접 켠 가상환경은 폴더를
+  옮겨도 유지됩니다. 훅이 켠 것만 훅이 끕니다.
+- 프롬프트마다 도는 코드지만 **폴더가 그대로면 즉시 빠져나옵니다.** 가상환경 탐색도
+  셸 안에서 문자열 조작으로만 하고, vman 을 부르는 것은 대상이 실제로 바뀔 때뿐입니다.
+- bash · zsh · PowerShell 에서 동작합니다. fish 는 아직 훅을 심지 않습니다.
+
+> **VS Code 에서도 되나요?** 통합 터미널은 셸을 띄우므로 그대로 동작합니다.
+> 터미널을 안 쓰더라도 VS Code 파이썬 확장이 작업 폴더의 `.venv` 를 스스로 찾아
+> 인터프리터로 잡습니다 — 기본 이름을 `.venv` 로 둔 이유이기도 합니다.
+> (편집기가 파일을 열 때 셸이 뜨는 것은 아니므로 훅과는 별개 경로입니다.)
 
 ### 탐색기 우클릭 (윈도우)
 
@@ -231,8 +267,8 @@ vman menu uninstall       # 해제
 폴더를 우클릭하거나 폴더 안 빈 공간을 우클릭하면:
 
 ```
-vman 가상환경 만들기  ▸  .pyenv  (숨김)
-                         pyenv
+vman 가상환경 만들기  ▸  .venv  (숨김)
+                         venv
 ```
 
 콘솔 창이 번쩍이지 않도록 `vman-tray.exe` 가 처리하고 결과만 대화상자로 알립니다.
@@ -379,7 +415,7 @@ PATH에 들어가는 항목은 설치 시 한 번만 추가됩니다.
 
 - 파이썬 **버전** 전환은 전역입니다. 폴더별 자동 전환은 심(shim) 방식이 필요합니다.
   다만 **패키지**는 `vman venv` 로 폴더별로 가를 수 있습니다.
-- 가상환경 활성화는 폴더에 들어갈 때 자동으로 되지 않습니다. `vman activate` 를 부르세요.
+- 가상환경 자동 활성화는 bash · zsh · PowerShell 만 지원합니다. fish 는 `vman activate` 를 쓰세요.
 - 윈도우: 서명되지 않은 exe이므로 SmartScreen 경고가 뜰 수 있습니다.
 - 윈도우: `JAVA_HOME` 은 레지스트리 값이라 이미 열린 터미널에는 반영되지 않습니다.
   (값 자체는 고정이라 버전 전환으로는 바뀌지 않습니다.)

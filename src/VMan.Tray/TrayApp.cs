@@ -133,6 +133,20 @@ internal sealed class TrayApp : ApplicationContext
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(BuildAppearanceMenu());
 
+        bool autoVenv = _settings.AutoActivateVenv;
+        var autoItem = Item("가상환경 자동 활성화", marked: autoVenv);
+        autoItem.Click += (_, _) => Guard(() =>
+        {
+            _settings.AutoActivateVenv = !autoVenv;
+            _settings.Save();
+            // 다음에 열리는 셸이 읽을 파일도 같이 갱신한다.
+            PowerShellEnv.WriteEnvFile();
+            Notify(_settings.AutoActivateVenv
+                ? "폴더를 옮기면 그 폴더의 가상환경을 자동으로 켭니다.\n새 터미널부터 적용됩니다."
+                : "가상환경 자동 활성화를 껐습니다.\n새 터미널부터 적용됩니다.");
+        });
+        _menu.Items.Add(autoItem);
+
         var newTerminal = Item("새 터미널 열기");
         newTerminal.Click += (_, _) => Guard(OpenFreshTerminal);
         _menu.Items.Add(newTerminal);

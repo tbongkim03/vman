@@ -132,10 +132,70 @@ public static class PowerShellEnv
         }
 
         sb.AppendLine();
+        sb.AppendLine($"$env:VMAN_AUTO_VENV = '{(Settings.Load().AutoActivateVenv ? 1 : 0)}'");
+        sb.AppendLine();
+        sb.Append(AutoActivateHook());
+        sb.AppendLine();
         sb.Append(WrapperFunction());
 
         File.WriteAllText(EnvFile, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
     }
+
+    /// <summary>
+    /// 폴더를 옮길 때마다 그 폴더의 가상환경을 켜고 끄는 훅. env.sh 쪽과 규칙이 같다.
+    /// PowerShell 은 프롬프트를 그릴 때 prompt 함수를 부르므로 그것을 감싼다.
+    /// </summary>
+    private static string AutoActivateHook() => """
+        # 폴더를 옮기면 그 폴더의 가상환경을 자동으로 켠다. $env:VMAN_AUTO_VENV = '0' 이면 아무 일도 안 한다.
+        function global:__vman_auto_venv {
+            if ($env:VMAN_AUTO_VENV -ne '1') { return }
+            $here = (Get-Location).Path
+            if ($here -eq $global:__vman_last_pwd) { return }
+            $global:__vman_last_pwd = $here
+
+            # 손으로 켠 것은 건드리지 않는다
+            if ($env:VIRTUAL_ENV -and $global:__vman_auto_set -ne $true) { return }
+
+            $found = $null
+            $d = $here
+            while ($d) {
+                foreach ($n in @('.venv', 'venv', 'env', '.pyenv', 'pyenv')) {
+                    if (Test-Path -LiteralPath (Join-Path $d "$n\pyvenv.cfg")) {
+                        $found = Join-Path $d $n
+                        break
+                    }
+                }
+                if ($found) { break }
+                $parent = Split-Path $d -Parent
+                if (-not $parent -or $parent -eq $d) { break }
+                $d = $parent
+            }
+
+            if ($found -ne $env:VIRTUAL_ENV) {
+                $exe = Join-Path $env:VMAN_ROOT 'bin\vman.exe'
+                if (-not (Test-Path -LiteralPath $exe)) { return }
+                if ($found) {
+                    $code = (& $exe env --shell powershell --activate $found 2>$null) -join "`n"
+                    if ($code) { Invoke-Expression $code; $global:__vman_auto_set = $true }
+                } else {
+                    $code = (& $exe env --shell powershell --deactivate 2>$null) -join "`n"
+                    if ($code) { Invoke-Expression $code; $global:__vman_auto_set = $false }
+                }
+            }
+        }
+
+        # 기존 prompt 를 한 번만 감싼다. 여러 번 읽혀도 겹겹이 싸이지 않게 표시를 남긴다.
+        if (-not $global:__vman_prompt_hooked) {
+            $global:__vman_prompt_hooked = $true
+            $global:__vman_inner_prompt = $function:prompt
+            function global:prompt {
+                __vman_auto_venv
+                if ($global:__vman_inner_prompt) { & $global:__vman_inner_prompt }
+                else { "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) " }
+            }
+        }
+
+        """;
 
     /// <summary>
     /// vman.exe 를 감싸는 PowerShell 함수.
@@ -168,6 +228,7 @@ public static class PowerShellEnv
                     'setup'   { $apply = @('env', '--shell', 'powershell') }
                     'unsetup' { $apply = @('env', '--shell', 'powershell', '--revert') }
                     'reload'  { $apply = @('env', '--shell', 'powershell', '--reload') }
+                    { $_ -in 'autoactivate', 'auto' } { $apply = @('env', '--shell', 'powershell', '--auto') }
                     { $_ -in 'venv', 'activate' } {
                         # 이름을 그대로 넘긴다. 안 넘기면 방금 만든 것과 다른 가상환경이 켜질 수 있다.
                         $apply = @('env', '--shell', 'powershell', '--activate')

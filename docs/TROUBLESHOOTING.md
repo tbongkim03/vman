@@ -285,6 +285,21 @@ python -c "import sys; print(sys.prefix)"
 탐색기 우클릭으로 만든 경우에는 활성화가 되지 않습니다. 만들어 주기만 할 뿐,
 GUI 가 터미널의 환경을 바꿀 수는 없기 때문입니다. 터미널에서 `vman activate` 를 부르세요.
 
+## 폴더를 옮겨도 가상환경이 자동으로 안 켜집니다
+
+```
+vman autoactivate          # 켜져 있는지 확인
+vman doctor                # 셸 연동이 되어 있는지 확인
+```
+
+훅은 `env.sh` / `env.ps1` 에 들어 있으므로 셸 연동이 안 되어 있으면 돌지 않습니다.
+`vman setup` 을 하고 새 셸을 여세요.
+
+이미 손으로 `vman activate` 한 상태라면 훅이 일부러 건드리지 않습니다.
+`vman deactivate` 로 놓아주면 다시 자동으로 따라옵니다.
+
+fish 는 아직 훅을 심지 않습니다. `vman activate` 를 쓰세요.
+
 ## 탐색기 우클릭 메뉴가 안 보입니다
 
 윈도우 11 은 고전 메뉴 항목을 **「추가 옵션 표시」(Shift+F10)** 안쪽에 넣습니다.
@@ -303,12 +318,12 @@ Stop-Process -Name explorer -Force
 
 ## 가상환경 폴더가 탐색기에 그대로 보입니다
 
-`.pyenv` 처럼 점으로 시작하는 이름은 **리눅스에서만** 저절로 숨겨집니다.
+`.venv` 처럼 점으로 시작하는 이름은 **리눅스에서만** 저절로 숨겨집니다.
 윈도우는 숨김 **속성**으로 감추므로 vman 이 만들 때 속성을 겁니다.
 직접 만든 폴더라면 속성이 없을 수 있습니다.
 
 ```powershell
-(Get-Item .\.pyenv -Force).Attributes += 'Hidden'
+(Get-Item .\.venv -Force).Attributes += 'Hidden'
 ```
 
 ## (리눅스) 설치한 Python 이 실행되지 않습니다

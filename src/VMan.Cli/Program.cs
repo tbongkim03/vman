@@ -23,6 +23,7 @@ internal static class Program
                 "activate"  => CmdActivate(args.Skip(1).ToArray()),
                 "deactivate"=> CmdDeactivate(),
                 "menu"      => CmdMenu(args.Skip(1).ToArray()),
+                "autoactivate" or "auto" => CmdAutoActivate(args.Skip(1).ToArray()),
                 "list" or "ls" => CmdList(args.Skip(1).ToArray()),
                 "use"       => CmdUse(args.Skip(1).ToArray()),
                 "unset"     => CmdUnset(args.Skip(1).ToArray()),
@@ -197,6 +198,46 @@ internal static class Program
     private static string ActivateHint()
         => ShellCode.HowToApply(ShellCode.Detect()).Replace("vman env", "vman env --activate");
 
+    /// <summary>
+    /// 폴더를 옮길 때 가상환경을 자동으로 켜고 끌지 설정한다.
+    ///
+    /// 설정은 settings.json 에 저장되어 다음 셸부터 적용되고, 셸 함수가 있으면
+    /// 지금 이 창의 VMAN_AUTO_VENV 까지 바꿔 즉시 반영된다.
+    /// </summary>
+    private static int CmdAutoActivate(string[] rest)
+    {
+        var settings = Settings.Load();
+        string? arg = rest.FirstOrDefault()?.ToLowerInvariant();
+
+        if (arg is null)
+        {
+            Console.WriteLine($"자동활성화: {(settings.AutoActivateVenv ? "켜짐" : "꺼짐")}");
+            Console.WriteLine("바꾸려면: vman autoactivate <on|off>");
+            return 0;
+        }
+
+        bool? wanted = arg switch
+        {
+            "on" or "true" or "1" or "켜기" => true,
+            "off" or "false" or "0" or "끄기" => false,
+            _ => null
+        };
+        if (wanted is null) return Fail("사용법: vman autoactivate <on|off>");
+
+        settings.AutoActivateVenv = wanted.Value;
+        settings.Save();
+
+        // 다음 셸이 읽을 파일도 같이 갱신한다.
+        if (Platform.IsWindows) PowerShellEnv.WriteEnvFile();
+        else ShellEnv.WriteEnvFile();
+
+        Console.WriteLine($"자동활성화: {(wanted.Value ? "켜짐" : "꺼짐")}");
+        Console.WriteLine(RanThroughWrapper()
+            ? "이 창에도 바로 적용했습니다."
+            : "새 셸부터 적용됩니다.");
+        return 0;
+    }
+
     /// <summary>탐색기 우클릭 메뉴 등록/해제. 윈도우 전용.</summary>
     private static int CmdMenu(string[] rest)
     {
@@ -240,6 +281,7 @@ internal static class Program
         bool reload = rest.Any(a => a is "--reload");
         bool activate = rest.Any(a => a is "--activate");
         bool deactivate = rest.Any(a => a is "--deactivate");
+        bool autoFlag = rest.Any(a => a is "--auto");
 
         ShellKind shell;
         int idx = Array.FindIndex(rest, a => a is "--shell" or "-s");
@@ -257,6 +299,20 @@ internal static class Program
         else
         {
             shell = ShellCode.Detect();
+        }
+
+        // 자동활성화 스위치만 이 셸에 반영한다. 설정을 바꾼 직후 래퍼가 부른다.
+        if (autoFlag)
+        {
+            string v = Settings.Load().AutoActivateVenv ? "1" : "0";
+            Console.Out.Write(shell switch
+            {
+                ShellKind.PosixShell => $"export VMAN_AUTO_VENV={v}\n",
+                ShellKind.Fish => $"set -gx VMAN_AUTO_VENV {v}\n",
+                ShellKind.PowerShell => $"$env:VMAN_AUTO_VENV = '{v}'\n",
+                _ => $"set \"VMAN_AUTO_VENV={v}\"\n"
+            });
+            return 0;
         }
 
         if (activate)
@@ -551,10 +607,11 @@ internal static class Program
           vman reload                       이 창의 환경을 새 터미널과 같게 다시 읽기
 
         가상환경 (폴더별 pip 격리)
-          vman venv [이름]                  이 폴더에 가상환경 생성 (기본 .pyenv)
+          vman venv [이름]                  이 폴더에 가상환경 생성 (기본 .venv)
           vman activate                     이 폴더의 가상환경을 이 창에 적용
           vman deactivate                   가상환경 해제
           vman menu install                 탐색기 우클릭 메뉴 등록 (윈도우)
+          vman autoactivate [on|off]        폴더 이동 시 자동 활성화 (기본 켜짐)
           vman unsetup                      PATH / JAVA_HOME 원복
           vman where                        경로와 PATH 등록 항목 확인
 

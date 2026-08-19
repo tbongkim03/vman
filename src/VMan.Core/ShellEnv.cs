@@ -132,10 +132,88 @@ public static class ShellEnv
         sb.AppendLine();
         sb.AppendLine("unset -f _vman_prepend");
         sb.AppendLine();
+
+        // 자동활성화 스위치. 훅은 항상 심고, 켜고 끄는 것은 이 변수로 한다.
+        // 그래야 `vman autoactivate off` 가 지금 이 창에도 바로 먹는다.
+        sb.AppendLine($"VMAN_AUTO_VENV={(Settings.Load().AutoActivateVenv ? 1 : 0)}");
+        sb.AppendLine("export VMAN_AUTO_VENV");
+        sb.AppendLine();
+        sb.Append(AutoActivateHook());
+        sb.AppendLine();
         sb.Append(WrapperFunction());
 
         File.WriteAllText(Layout.ShellEnvFile, sb.ToString().ReplaceLineEndings("\n"));
     }
+
+    /// <summary>
+    /// 폴더를 옮길 때마다 그 폴더의 가상환경을 켜고 끄는 훅.
+    ///
+    /// 프롬프트를 그릴 때마다 도는 코드라 비싸면 안 된다. 그래서
+    ///   - 디렉터리가 그대로면 즉시 빠져나온다 (대부분의 프롬프트가 여기서 끝난다)
+    ///   - 가상환경 탐색은 셸 안에서 문자열 조작으로만 한다. 프로세스를 띄우지 않는다
+    ///   - vman 을 부르는 것은 대상이 <b>실제로 바뀌었을 때</b>뿐이다
+    ///
+    /// 손으로 켠 가상환경은 건드리지 않는다. 훅이 켠 것에만 _VMAN_AUTO_SET 표시를 남기고,
+    /// 그 표시가 있을 때만 훅이 다시 끌 수 있다. 그렇지 않으면 `vman activate` 로
+    /// 딴 폴더 것을 켜 둔 사람이 프롬프트 한 번에 그것을 잃는다.
+    /// </summary>
+    private static string AutoActivateHook() => """
+        # 폴더를 옮기면 그 폴더의 가상환경을 자동으로 켠다. VMAN_AUTO_VENV=0 이면 아무 일도 안 한다.
+        _vman_auto_venv() {
+            [ "${VMAN_AUTO_VENV:-0}" = "1" ] || return 0
+            [ "$PWD" = "${_VMAN_LAST_PWD:-}" ] && return 0
+            _VMAN_LAST_PWD="$PWD"
+
+            # 손으로 켠 것은 건드리지 않는다
+            if [ -n "${VIRTUAL_ENV:-}" ] && [ "${_VMAN_AUTO_SET:-0}" != "1" ]; then
+                return 0
+            fi
+
+            # 위로 거슬러 올라가며 pyvenv.cfg 를 찾는다. 프로세스를 띄우지 않는다.
+            _vman_found=""
+            _vman_d="$PWD"
+            while : ; do
+                for _vman_n in .venv venv env .pyenv pyenv; do
+                    if [ -f "$_vman_d/$_vman_n/pyvenv.cfg" ]; then
+                        _vman_found="$_vman_d/$_vman_n"
+                        break
+                    fi
+                done
+                [ -n "$_vman_found" ] && break
+                [ -z "$_vman_d" ] || [ "$_vman_d" = "/" ] && break
+                _vman_d="${_vman_d%/*}"
+            done
+
+            if [ "$_vman_found" != "${VIRTUAL_ENV:-}" ]; then
+                if [ -n "$_vman_found" ]; then
+                    eval "$(VMAN_SHELL=posix "${VMAN_ROOT}/bin/vman" env --shell posix --activate "$_vman_found" 2>/dev/null)"
+                    _VMAN_AUTO_SET=1
+                else
+                    eval "$(VMAN_SHELL=posix "${VMAN_ROOT}/bin/vman" env --shell posix --deactivate 2>/dev/null)"
+                    _VMAN_AUTO_SET=0
+                fi
+                hash -r 2>/dev/null || true
+            fi
+
+            unset _vman_found _vman_d _vman_n
+            return 0
+        }
+
+        # 프롬프트를 그리기 직전에 부른다. 셸마다 거는 자리가 다르다.
+        if [ -n "${ZSH_VERSION:-}" ]; then
+            typeset -ga precmd_functions
+            case " ${precmd_functions[*]} " in
+                *" _vman_auto_venv "*) ;;
+                *) precmd_functions+=(_vman_auto_venv) ;;
+            esac
+        elif [ -n "${BASH_VERSION:-}" ]; then
+            case "${PROMPT_COMMAND:-}" in
+                *_vman_auto_venv*) ;;
+                *) PROMPT_COMMAND="_vman_auto_venv${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
+            esac
+        fi
+
+        """;
 
     /// <summary>
     /// 실제 실행 파일을 감싸는 셸 함수.
@@ -171,6 +249,8 @@ public static class ShellEnv
                         eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix)" ;;
                     unsetup)
                         eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --revert)" ;;
+                    autoactivate|auto)
+                        eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --auto)" ;;
                     reload)
                         eval "$(VMAN_SHELL=posix "$_vman_bin" env --shell posix --reload)"
                         hash -r 2>/dev/null || true ;;

@@ -424,8 +424,8 @@ venv 가 딸려 주는 `activate` 스크립트를 부르지 않습니다. 셸마
 
 ```
 $ vman env --activate
-export PATH='/proj/.pyenv/bin:/home/me/.local/share/vman/bin:...'
-export VIRTUAL_ENV='/proj/.pyenv'
+export PATH='/proj/.venv/bin:/home/me/.local/share/vman/bin:...'
+export VIRTUAL_ENV='/proj/.venv'
 unset PYTHONHOME
 ```
 
@@ -436,6 +436,34 @@ unset PYTHONHOME
 
 `Find` 는 상위 폴더로 거슬러 올라가며 `pyvenv.cfg` 가 있는 폴더를 찾습니다.
 프로젝트 하위 어디에서 실행해도 잡히게 하려는 것입니다.
+
+### 자동 활성화 훅
+
+프롬프트를 그릴 때마다 도는 코드이므로 비싸면 안 됩니다. 세 단계로 걸러냅니다.
+
+1. `VMAN_AUTO_VENV` 가 1 이 아니면 즉시 반환 (꺼져 있으면 아무 일도 안 한다)
+2. 디렉터리가 직전과 같으면 즉시 반환 (대부분의 프롬프트가 여기서 끝난다)
+3. 가상환경 탐색은 셸 안에서 문자열 조작으로만 한다 — `dirname` 같은 것도 부르지 않고
+   `${d%/*}` 로 올라간다. 프로세스를 띄우는 것은 **대상이 실제로 바뀌었을 때**뿐이다
+
+거는 자리는 셸마다 다릅니다.
+
+| 셸 | 자리 |
+|---|---|
+| bash | `PROMPT_COMMAND` |
+| zsh | `precmd_functions` |
+| PowerShell | `prompt` 함수를 감싼다 |
+
+세 곳 모두 **이미 걸려 있는지 검사한 뒤** 겁니다. env.sh 가 여러 번 읽혀도 훅이
+겹겹이 쌓이지 않아야 하기 때문입니다.
+
+손으로 켠 가상환경은 건드리지 않습니다. 훅이 켠 것에만 `_VMAN_AUTO_SET` 표시를 남기고
+그 표시가 있을 때만 훅이 다시 끕니다. 그렇지 않으면 `vman activate` 로 딴 폴더 것을
+켜 둔 사람이 프롬프트 한 번에 그것을 잃습니다.
+
+켜고 끄는 것은 `settings.json` 에 저장하되, 훅 자체는 **항상** 심고 `VMAN_AUTO_VENV`
+변수로 가릅니다. 그래야 `vman autoactivate off` 가 지금 열려 있는 창에도 바로 먹습니다
+(셸 함수가 `vman env --auto` 를 eval 한다).
 
 ### 탐색기 우클릭 메뉴
 
