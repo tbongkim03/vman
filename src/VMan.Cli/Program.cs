@@ -90,6 +90,20 @@ internal static class Program
             return;
         }
 
+        // 실행 정책이 막고 있으면 프로필을 심어 봐야 소용이 없다. 그 사실을 말하지 않으면
+        // "다음 터미널부터 적용됩니다" 가 거짓말이 된다. 정책 변경은 사용자가 직접 해야 한다.
+        if (Platform.IsWindows && PowerShellEnv.ExecutionPolicyBlocksProfile(out string policy))
+        {
+            Console.WriteLine($"주의: PowerShell 실행 정책이 {policy} 라서 프로필이 실행되지 않습니다.");
+            Console.WriteLine("     이대로면 새 터미널을 열어도 vman 연동이 켜지지 않습니다.");
+            Console.WriteLine();
+            Console.WriteLine("  먼저 이것을 실행하세요 (관리자 권한 불필요):");
+            Console.WriteLine($"    {PowerShellEnv.PolicyFixCommand}");
+            Console.WriteLine();
+            Console.WriteLine("  그 다음 새 터미널을 열면 됩니다.");
+            return;
+        }
+
         // 방금 setup 을 했으니 연동은 설치되어 있다. 그러면 프로필을 다시 읽는 한 줄이
         // 가장 간단하고, eval 주문은 그 다음이다.
         Console.WriteLine("다음에 여는 터미널부터 자동으로 적용됩니다.");
@@ -214,6 +228,19 @@ internal static class Program
             Console.WriteLine();
             Console.WriteLine("한 번만 해두면 됩니다:");
             Console.WriteLine("  vman setup        그리고 새 터미널을 여세요");
+        }
+        else if (Platform.IsWindows && PowerShellEnv.ExecutionPolicyBlocksProfile(out string policy))
+        {
+            // 프로필은 심겨 있지만 실행 정책이 막고 있다. 이 경우 새 터미널도,
+            // . $PROFILE 도 소용없다. 정책부터 풀어야 한다.
+            Console.WriteLine($"이 창에는 적용되지 않았습니다 — PowerShell 실행 정책이 {policy} 입니다.");
+            Console.WriteLine("프로필에 vman 연동은 심겨 있지만 실행되지 못합니다.");
+            Console.WriteLine("새 터미널을 열어도 마찬가지입니다.");
+            Console.WriteLine();
+            Console.WriteLine("한 번만 풀어 주면 됩니다 (관리자 권한 불필요):");
+            Console.WriteLine($"  {PowerShellEnv.PolicyFixCommand}");
+            Console.WriteLine();
+            Console.WriteLine("그 다음 새 터미널을 여세요.");
         }
         else
         {

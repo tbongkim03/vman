@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Text;
+using Microsoft.Win32;
 
 namespace VMan.Core;
 
@@ -92,6 +93,55 @@ public static class PowerShellEnv
             .Where(p => File.Exists(p)
                         && File.ReadAllText(p).Contains(BeginMarker, StringComparison.Ordinal))
             .ToList();
+
+    /// <summary>
+    /// 지속 실행 정책. Process 범위는 일부러 무시한다 — 그 창에만 유효해서
+    /// "새 터미널을 열면 되는지" 를 판단하는 근거가 되지 못한다.
+    ///
+    /// 아무 데도 값이 없으면 윈도우 클라이언트 기본값인 Restricted 다.
+    /// </summary>
+    public static string PersistentExecutionPolicy()
+    {
+        // 그룹 정책이 있으면 그것이 사용자 설정을 이긴다.
+        foreach (var root in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            using var gp = root.OpenSubKey(@"SOFTWARE\Policies\Microsoft\Windows\PowerShell");
+            if (gp?.GetValue("EnableScripts") is int enabled)
+                return enabled == 0
+                    ? "Restricted"
+                    : gp.GetValue("ExecutionPolicy") as string ?? "RemoteSigned";
+        }
+
+        foreach (var root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            using var k = root.OpenSubKey(
+                @"SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell");
+            if (k?.GetValue("ExecutionPolicy") is string p
+                && !string.IsNullOrWhiteSpace(p)
+                && !p.Equals("Undefined", StringComparison.OrdinalIgnoreCase))
+                return p;
+        }
+
+        return "Restricted";
+    }
+
+    /// <summary>
+    /// 실행 정책이 프로필 로드를 막는지.
+    ///
+    /// 이게 참이면 vman 이 프로필에 무엇을 심든 아무 소용이 없다. 새 터미널을 열어도
+    /// 프로필 자체가 실행되지 않아서, "다음 터미널부터 적용됩니다" 가 거짓말이 된다.
+    /// 윈도우 기본값이 Restricted 이므로 아무것도 안 건드린 PC 가 정확히 이 상태다.
+    /// </summary>
+    public static bool ExecutionPolicyBlocksProfile(out string policy)
+    {
+        policy = PersistentExecutionPolicy();
+        return policy.Equals("Restricted", StringComparison.OrdinalIgnoreCase)
+            || policy.Equals("AllSigned", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>사용자가 직접 쳐야 하는 해제 명령. 관리자 권한이 필요 없다.</summary>
+    public const string PolicyFixCommand =
+        "Set-ExecutionPolicy -Scope CurrentUser RemoteSigned";
 
     /// <summary>
     /// env.ps1 을 (다시) 쓴다.

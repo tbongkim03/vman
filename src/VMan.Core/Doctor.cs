@@ -178,6 +178,17 @@ public static class Doctor
             return;
         }
 
+        // 프로필을 잘 심어 놨어도 실행 정책이 막으면 아무 소용이 없다.
+        // 윈도우 기본값이 Restricted 라서 아무것도 안 건드린 PC 가 여기 해당한다.
+        if (PowerShellEnv.ExecutionPolicyBlocksProfile(out string policy))
+        {
+            findings.Add(new DoctorFinding(DoctorLevel.Error,
+                $"PowerShell 실행 정책({policy})이 프로필 로드를 막고 있습니다",
+                "프로필에 vman 블록은 있지만 실행되지 않습니다. 새 터미널을 열어도 마찬가지입니다.",
+                PowerShellEnv.PolicyFixCommand + "   (관리자 권한 불필요)"));
+            return;
+        }
+
         if (!ViaWrapper())
         {
             findings.Add(new DoctorFinding(DoctorLevel.Warn,

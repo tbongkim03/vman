@@ -123,11 +123,29 @@ for /f "delims=" %i in ('vman env --shell cmd --reload') do @%i
 
 ## `이 시스템에서 스크립트를 실행할 수 없으므로...`
 
-PowerShell 실행 정책 때문입니다. 시스템 설정을 바꾸지 않고 이번 실행만 허용합니다.
+PowerShell 실행 정책 때문입니다. **윈도우 기본값이 `Restricted`** 라서 아무것도
+건드리지 않은 PC 가 정확히 이 상태입니다.
+
+**빌드 스크립트만 한 번 돌리려면** 시스템 설정을 바꾸지 않고 이번 실행만 허용합니다.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build.ps1 -Install
 ```
+
+**하지만 vman 셸 연동을 쓰려면 정책을 풀어야 합니다.** `Restricted` 에서는
+PowerShell 프로필(`$PROFILE`) 자체가 실행되지 않기 때문입니다. vman 이 프로필에
+연동을 심어 놔도 읽히지 않으므로, 새 터미널을 열어도 `vman activate` 나
+`vman reload` 가 이 창에 먹지 않습니다.
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+관리자 권한이 필요 없고, `CurrentUser` 범위라 시스템 전체를 바꾸지 않습니다.
+`RemoteSigned` 는 내가 만든 로컬 스크립트는 허용하고 인터넷에서 받은 것은
+서명을 요구하는, 마이크로소프트가 권장하는 설정입니다.
+
+실행한 뒤 **새 터미널**을 여세요. `vman doctor` 가 이 상태를 짚어 줍니다.
 
 ## `dotnet` 명령을 찾을 수 없습니다
 
