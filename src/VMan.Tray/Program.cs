@@ -39,9 +39,12 @@ internal static class Program
     {
         try
         {
-            var venv = VenvManager.Create(dir, name);
+            // 이미 있으면 오류로 막지 않는다. 우클릭한 사람이 원하는 결과는
+            // "이 폴더에 쓸 수 있는 가상환경이 있는 것" 이다.
+            var venv = VenvManager.Ensure(dir, name, out bool created);
             MessageBox.Show(
-                $"만들었습니다.\n\n{venv.Path}\n{VenvManager.Probe(venv)}\n\n" +
+                (created ? "만들었습니다." : "이미 있어서 그대로 씁니다.") +
+                $"\n\n{venv.Path}\n{VenvManager.Probe(venv)}\n\n" +
                 $"터미널에서 활성화하려면 그 폴더에서:\n  vman activate",
                 "vman 가상환경", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

@@ -84,6 +84,34 @@ public static class VenvManager
     }
 
     /// <summary>
+    /// 이 폴더에 가상환경이 없으면 만들고, 이미 쓸 수 있는 것이 있으면 그것을 돌려준다.
+    ///
+    /// `vman venv` 를 이미 가상환경이 있는 폴더에서 치는 의도는 "그거 쓰자" 이지
+    /// "새로 만들어라" 가 아니다. Create 가 던지는 예외를 그대로 사용자에게 보이면
+    /// 켤 방법을 따로 찾아야 하는 막다른 길이 된다.
+    ///
+    /// 다만 같은 이름의 폴더가 있는데 가상환경이 아니라면 그대로 예외를 낸다.
+    /// 그 경우엔 사람이 무엇인지 보고 정해야 한다.
+    /// </summary>
+    /// <param name="created">새로 만들었으면 true, 이미 있던 것을 쓰면 false.</param>
+    public static Venv Ensure(string parentDir, string name, out bool created,
+                              IProgress<string>? log = null)
+    {
+        string target = Path.Combine(Path.GetFullPath(parentDir), name);
+        var existing = new Venv(target, name);
+
+        if (existing.IsValid)
+        {
+            created = false;
+            log?.Report($"이미 있는 가상환경을 씁니다: {target}");
+            return existing;
+        }
+
+        created = true;
+        return Create(parentDir, name, log);
+    }
+
+    /// <summary>
     /// 이 폴더(또는 위쪽 폴더)에 있는 가상환경을 찾는다.
     /// 프로젝트 하위 폴더에서 명령을 실행해도 잡히도록 위로 거슬러 올라간다.
     /// </summary>

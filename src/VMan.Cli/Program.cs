@@ -141,19 +141,36 @@ internal static class Program
 
         string name = rest.FirstOrDefault(a => !a.StartsWith('-')) ?? VenvManager.DefaultName;
 
-        var venv = VenvManager.Create(dir, name, new Progress<string>(Console.WriteLine));
+        // 이미 있으면 새로 만들지 않고 그것을 쓴다. 사용자가 원하는 것은 대개
+        // "이 폴더의 가상환경을 켜자" 이지 "무조건 새로 만들어라" 가 아니다.
+        var venv = VenvManager.Ensure(dir, name, out bool created,
+                                      new Progress<string>(Console.WriteLine));
         Console.WriteLine($"파이썬: {VenvManager.Probe(venv)}");
 
         if (RanThroughWrapper())
         {
-            Console.WriteLine("이 창에서 활성화했습니다. 이제 pip 은 여기에만 설치합니다.");
+            Console.WriteLine(created
+                ? "이 창에서 활성화했습니다. 이제 pip 은 여기에만 설치합니다."
+                : "이 창에서 활성화했습니다.");
             return 0;
         }
 
+        PrintActivateHelp();
+        return 0;
+    }
+
+    /// <summary>
+    /// 활성화 방법 안내. 사람이 칠 명령(`vman activate`)을 앞세운다.
+    /// eval 주문은 셸 연동이 아직 안 된 경우의 대비책일 뿐이라 뒤로 뺀다.
+    /// </summary>
+    private static void PrintActivateHelp()
+    {
         Console.WriteLine();
         Console.WriteLine("활성화하려면:");
+        Console.WriteLine("  vman activate");
+        Console.WriteLine();
+        Console.WriteLine("셸 연동이 안 되어 있다면 (`vman setup` 후 새 셸) 대신:");
         Console.WriteLine($"  {ActivateHint()}");
-        return 0;
     }
 
     /// <summary>이 폴더(또는 위쪽)에 있는 가상환경을 활성화한다.</summary>
